@@ -7,8 +7,9 @@ import * as path from 'path';
 import type { OpenClawSessionPatch } from '../../../common/openclawSession';
 import type { CoworkExecutionMode, CoworkMessage, CoworkSession, CoworkSessionStatus, CoworkStore } from '../../coworkStore';
 import { t } from '../../i18n';
-import { getCommandDangerLevel,isDeleteCommand } from '../commandSafety';
+import { getCommandDangerLevel } from '../commandSafety';
 import { setCoworkProxySessionId } from '../coworkOpenAICompatProxy';
+import { resolveCoworkLlmApiConfig } from '../coworkUtil';
 import { extractOpenClawAssistantStreamText } from '../openclawAssistantText';
 import {
   buildManagedSessionKey,
@@ -29,6 +30,17 @@ import {
   shouldSuppressHeartbeatText,
 } from '../openclawHistory';
 import { buildOpenClawLocalTimeContextPrompt } from '../openclawLocalTimeContextPrompt';
+import {
+  EscalationCounter,
+  evaluateShellGuard,
+  formatDenyMessageForAgent,
+  type ShellGuardEvaluation,
+} from '../shellGuard';
+import {
+  normalizeShellGuardMode,
+  ShellGuardSource,
+  ShellGuardVerdict,
+} from '../shellGuard/constants';
 import type {
   CoworkContinueOptions,
   CoworkRuntime,
@@ -700,6 +712,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
   // (which reuse the same runId) don't re-create an ActiveTurn and surface duplicate errors.
   private readonly terminatedRunIds = new Set<string>();
   private readonly pendingApprovals = new Map<string, PendingApprovalEntry>();
+  private readonly shellGuardEscalations = new Map<string, EscalationCounter>();
   private readonly pendingTurns = new Map<string, { resolve: () => void; reject: (error: Error) => void }>();
   private readonly confirmationModeBySession = new Map<string, 'modal' | 'text'>();
   private readonly bridgedSessions = new Set<string>();
@@ -3161,6 +3174,37 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
   }
 
   private handleApprovalRequested(payload: unknown): void {
+    void this.handleApprovalRequestedAsync(payload).catch((error) => {
+      console.error('[OpenClawRuntime] shell-guard evaluation failed:', error);
+    });
+  }
+
+  private getShellGuardEscalation(sessionId: string): EscalationCounter {
+    let c = this.shellGuardEscalations.get(sessionId);
+    if (!c) {
+      c = new EscalationCounter();
+      this.shellGuardEscalations.set(sessionId, c);
+    }
+    return c;
+  }
+
+  private collectShellGuardContext(sessionId: string): { userIntent: string; recentToolCalls: string[] } {
+    const session = this.store.getSession(sessionId);
+    if (!session) return { userIntent: '', recentToolCalls: [] };
+    const tail = session.messages.slice(-12);
+    const userIntent = [...tail].reverse().find((m) => m.type === 'user')?.content?.slice(0, 1000) ?? '';
+    const recentToolCalls: string[] = [];
+    for (const m of tail) {
+      const tn = m.metadata?.toolName;
+      if (typeof tn === 'string' && tn) {
+        const cmd = m.metadata?.toolInput?.['command'];
+        recentToolCalls.push(typeof cmd === 'string' ? `${tn}: ${cmd.slice(0, 200)}` : tn);
+      }
+    }
+    return { userIntent, recentToolCalls: recentToolCalls.slice(-3) };
+  }
+
+  private async handleApprovalRequestedAsync(payload: unknown): Promise<void> {
     if (!isRecord(payload)) return;
     const typedPayload = payload as ExecApprovalRequestedPayload;
     const requestId = typeof typedPayload.id === 'string' ? typedPayload.id.trim() : '';
@@ -3171,7 +3215,6 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     const sessionKey = typeof request.sessionKey === 'string' ? request.sessionKey.trim() : '';
     let sessionId = sessionKey ? this.resolveSessionIdBySessionKey(sessionKey) ?? undefined : undefined;
 
-    // Try to resolve channel-originated sessions for approval requests
     if (!sessionId && sessionKey && this.channelSessionSync) {
       const channelSessionId = this.channelSessionSync.resolveOrCreateSession(sessionKey)
         || (!this.heartbeatSessionKeys.has(sessionKey) && this.channelSessionSync.resolveOrCreateMainAgentSession(sessionKey))
@@ -3190,23 +3233,78 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     const command = typeof request.command === 'string' ? request.command : '';
     const isChannelSession = parseChannelSessionKey(sessionKey) !== null;
 
-    // Auto-approve: channel sessions always, local sessions for non-delete commands.
-    // Intentionally allows non-delete dangerous commands (git push, kill, chmod) without
-    // prompting — this is a deliberate trade-off to avoid the approval-pending timing
-    // issue on fresh installs.  Only file-deletion commands warrant a blocking modal.
-    // The allow-always decision adds the command to the gateway allowlist so subsequent
-    // calls skip the approval flow entirely.
-    if (isChannelSession || !isDeleteCommand(command)) {
+    // Channel sessions (IM bots, scheduled tasks) cannot prompt the user, so
+    // they keep the legacy auto-approve behaviour.  Real interactive sessions
+    // go through the shell-guard pipeline.
+    if (isChannelSession) {
       this.pendingApprovals.set(requestId, { requestId, sessionId, allowAlways: true });
       this.respondToPermission(requestId, { behavior: 'allow', updatedInput: {} });
+      return;
     }
-    // Suppress approval popups for sessions in stop cooldown — the user
-    // already stopped the session, so showing a new permission dialog
-    // would be confusing.  The Gateway-side run will time out on its own.
+
     if (this.isSessionInStopCooldown(sessionId)) {
       return;
     }
 
+    const config = this.store.getConfig();
+    const mode = normalizeShellGuardMode(config.shellGuardMode);
+    const cwd = typeof request.cwd === 'string' ? request.cwd : config.workingDirectory ?? '';
+    const ctx = this.collectShellGuardContext(sessionId);
+
+    let evaluation: ShellGuardEvaluation;
+    try {
+      evaluation = await evaluateShellGuard({
+        mode,
+        command,
+        cwd,
+        userIntent: ctx.userIntent,
+        recentToolCalls: ctx.recentToolCalls,
+        classifierModel: config.shellGuardClassifierModel || undefined,
+        classifierTimeoutMs: config.shellGuardClassifierTimeoutMs,
+        escalateThreshold: config.shellGuardEscalateThreshold,
+        resolveConfig: () => resolveCoworkLlmApiConfig(),
+        escalation: this.getShellGuardEscalation(sessionId),
+      });
+    } catch (error) {
+      console.error('[OpenClawRuntime] shell-guard threw, falling back to manual approval:', error);
+      evaluation = {
+        verdict: ShellGuardVerdict.Escalate,
+        source: ShellGuardSource.ClassifierFallback,
+        reason: 'shell-guard internal error; falling back to manual approval',
+        mode,
+      };
+    }
+
+    if (evaluation.verdict === ShellGuardVerdict.Allow) {
+      const allowAlways = evaluation.source === ShellGuardSource.HardAllow
+        || evaluation.source === ShellGuardSource.ModeSkipAll;
+      this.pendingApprovals.set(requestId, { requestId, sessionId, allowAlways });
+      this.respondToPermission(requestId, { behavior: 'allow', updatedInput: {} });
+      return;
+    }
+
+    if (evaluation.verdict === ShellGuardVerdict.Deny) {
+      this.pendingApprovals.set(requestId, { requestId, sessionId });
+      const denyMsg = formatDenyMessageForAgent(evaluation);
+      this.respondToPermission(requestId, { behavior: 'deny', message: denyMsg });
+      const sysMsg = this.store.addMessage(sessionId, {
+        type: 'system',
+        content: t('shellGuardBlocked', { command, reason: evaluation.reason }),
+        metadata: {
+          shellGuard: {
+            verdict: evaluation.verdict,
+            source: evaluation.source,
+            command,
+            reason: evaluation.reason,
+            ruleId: evaluation.ruleId,
+          },
+        },
+      });
+      this.emit('message', sessionId, sysMsg);
+      return;
+    }
+
+    // Escalate → fall through to existing manual permission prompt.
     this.pendingApprovals.set(requestId, { requestId, sessionId });
 
     const { level: dangerLevel, reason: dangerReason } = getCommandDangerLevel(command);
@@ -3225,6 +3323,12 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         resolvedPath: request.resolvedPath ?? null,
         sessionKey: request.sessionKey ?? null,
         agentId: request.agentId ?? null,
+        shellGuard: {
+          source: evaluation.source,
+          reason: evaluation.reason,
+          escalationCount: evaluation.escalationCount,
+          mode: evaluation.mode,
+        },
       },
       toolUseId: requestId,
     };
