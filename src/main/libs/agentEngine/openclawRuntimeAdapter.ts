@@ -3275,6 +3275,14 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       };
     }
 
+    const cmdPreview = command.length > 120 ? `${command.slice(0, 117)}...` : command;
+    console.log(
+      `[ShellGuard] verdict=${evaluation.verdict} source=${evaluation.source} mode=${mode}`
+      + (evaluation.classifierCached ? ' cached=true' : '')
+      + (evaluation.escalationCount ? ` strikes=${evaluation.escalationCount}` : '')
+      + ` command=${JSON.stringify(cmdPreview)} reason=${JSON.stringify(evaluation.reason)}`,
+    );
+
     if (evaluation.verdict === ShellGuardVerdict.Allow) {
       const allowAlways = evaluation.source === ShellGuardSource.HardAllow
         || evaluation.source === ShellGuardSource.ModeSkipAll;
