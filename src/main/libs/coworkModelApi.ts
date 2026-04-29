@@ -41,6 +41,20 @@ const collectTextFromUnknown = (value: unknown): string[] => {
   return collected;
 };
 
+export type CoworkLlmApiConfig =
+  | {
+    protocol: typeof CoworkModelProtocol.Anthropic;
+    apiKey: string;
+    baseURL: string;
+    model: string;
+  }
+  | {
+    protocol: typeof CoworkModelProtocol.GeminiNative;
+    apiKey: string;
+    baseURL: string;
+    model: string;
+  };
+
 export function buildAnthropicMessagesUrl(baseUrl: string): string {
   const normalized = baseUrl.trim().replace(/\/+$/, '');
   if (!normalized) {

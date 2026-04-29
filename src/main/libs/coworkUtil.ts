@@ -8,6 +8,7 @@ import { coworkLog } from './coworkLogger';
 import {
   buildAnthropicMessagesUrl,
   buildGeminiGenerateContentUrl,
+  type CoworkLlmApiConfig,
   CoworkModelProtocol,
   extractApiErrorSnippet,
   extractTextFromAnthropicResponse,
@@ -1420,19 +1421,11 @@ const SESSION_TITLE_MAX_CHARS = 50;
 const SESSION_TITLE_TIMEOUT_MS = 8000;
 const COWORK_MODEL_PROBE_TIMEOUT_MS = 20000;
 
-type SessionTitleApiConfig =
-  | {
-      protocol: typeof CoworkModelProtocol.Anthropic;
-      apiKey: string;
-      baseURL: string;
-      model: string;
-    }
-  | {
-      protocol: typeof CoworkModelProtocol.GeminiNative;
-      apiKey: string;
-      baseURL: string;
-      model: string;
-    };
+type SessionTitleApiConfig = CoworkLlmApiConfig;
+
+export function resolveCoworkLlmApiConfig(): { config: CoworkLlmApiConfig | null; error?: string } {
+  return resolveSessionTitleApiConfig();
+}
 
 function resolveSessionTitleApiConfig(): { config: SessionTitleApiConfig | null; error?: string } {
   const rawResolution = resolveRawApiConfig();
