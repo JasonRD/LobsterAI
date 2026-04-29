@@ -3283,21 +3283,12 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       + ` command=${JSON.stringify(cmdPreview)} reason=${JSON.stringify(evaluation.reason)}`,
     );
 
-    if (evaluation.verdict === ShellGuardVerdict.Allow) {
-      const allowAlways = evaluation.source === ShellGuardSource.HardAllow
-        || evaluation.source === ShellGuardSource.ModeSkipAll;
-      this.pendingApprovals.set(requestId, { requestId, sessionId, allowAlways });
-      this.respondToPermission(requestId, { behavior: 'allow', updatedInput: {} });
-      return;
-    }
-
-    if (evaluation.verdict === ShellGuardVerdict.Deny) {
-      this.pendingApprovals.set(requestId, { requestId, sessionId });
-      const denyMsg = formatDenyMessageForAgent(evaluation);
-      this.respondToPermission(requestId, { behavior: 'deny', message: denyMsg });
+    const emitGuardSystemMessage = (
+      key: 'shellGuardAllowed' | 'shellGuardBlocked' | 'shellGuardEscalated',
+    ) => {
       const sysMsg = this.store.addMessage(sessionId, {
         type: 'system',
-        content: t('shellGuardBlocked', { command, reason: evaluation.reason }),
+        content: t(key, { command: cmdPreview, reason: evaluation.reason }),
         metadata: {
           shellGuard: {
             verdict: evaluation.verdict,
@@ -3305,15 +3296,34 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
             command,
             reason: evaluation.reason,
             ruleId: evaluation.ruleId,
+            cached: evaluation.classifierCached,
+            escalationCount: evaluation.escalationCount,
           },
         },
       });
       this.emit('message', sessionId, sysMsg);
+    };
+
+    if (evaluation.verdict === ShellGuardVerdict.Allow) {
+      const allowAlways = evaluation.source === ShellGuardSource.HardAllow
+        || evaluation.source === ShellGuardSource.ModeSkipAll;
+      this.pendingApprovals.set(requestId, { requestId, sessionId, allowAlways });
+      this.respondToPermission(requestId, { behavior: 'allow', updatedInput: {} });
+      emitGuardSystemMessage('shellGuardAllowed');
+      return;
+    }
+
+    if (evaluation.verdict === ShellGuardVerdict.Deny) {
+      this.pendingApprovals.set(requestId, { requestId, sessionId });
+      const denyMsg = formatDenyMessageForAgent(evaluation);
+      this.respondToPermission(requestId, { behavior: 'deny', message: denyMsg });
+      emitGuardSystemMessage('shellGuardBlocked');
       return;
     }
 
     // Escalate → fall through to existing manual permission prompt.
     this.pendingApprovals.set(requestId, { requestId, sessionId });
+    emitGuardSystemMessage('shellGuardEscalated');
 
     const { level: dangerLevel, reason: dangerReason } = getCommandDangerLevel(command);
 

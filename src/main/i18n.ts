@@ -69,8 +69,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
     execApprovalDenied: '用户已拒绝执行该命令。',
 
     // Shell guard
-    shellGuardBlocked: 'Shell 安全护栏已拦截命令：{command}\n原因：{reason}',
-    shellGuardEscalated: 'Shell 安全护栏多次拦截相同命令，已转交人工审批。',
+    shellGuardAllowed: '🛡️ Shell 安全护栏已放行：{command}',
+    shellGuardBlocked: '🛡️ Shell 安全护栏已拦截命令：{command}\n原因：{reason}',
+    shellGuardEscalated: '🛡️ Shell 安全护栏请求人工审批：{command}\n原因：{reason}',
 
     // Skill manager errors
     skillErrNoSkillMd: '来源中未找到 SKILL.md',
@@ -331,8 +332,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
     execApprovalDenied: 'The user denied the command execution.',
 
     // Shell guard
-    shellGuardBlocked: 'Shell guard blocked command: {command}\nReason: {reason}',
-    shellGuardEscalated: 'Shell guard repeatedly blocked the same command; escalated to manual approval.',
+    shellGuardAllowed: '🛡️ Shell guard allowed: {command}',
+    shellGuardBlocked: '🛡️ Shell guard blocked: {command}\nReason: {reason}',
+    shellGuardEscalated: '🛡️ Shell guard requested manual approval: {command}\nReason: {reason}',
 
     // Skill manager errors
     skillErrNoSkillMd: 'No SKILL.md found in source',
