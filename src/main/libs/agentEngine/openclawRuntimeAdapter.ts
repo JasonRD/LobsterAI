@@ -1246,9 +1246,11 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       return;
     }
 
-    const decision = result.behavior !== 'allow' ? 'deny'
-      : pending.allowAlways ? 'allow-always'
-      : 'allow-once';
+    // ShellGuard owns the allow/deny policy on our side, so we never ask the
+    // gateway to add commands to its allowlist (which would also be rejected
+    // when ask=always).  A simple allow-once is enough — every subsequent
+    // command flows through ShellGuard again.
+    const decision = result.behavior !== 'allow' ? 'deny' : 'allow-once';
     const client = this.gatewayClient;
     if (!client) {
       this.pendingApprovals.delete(requestId);
