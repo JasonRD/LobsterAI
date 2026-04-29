@@ -806,6 +806,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
   const [coworkMemoryEnabled, setCoworkMemoryEnabled] = useState<boolean>(coworkConfig.memoryEnabled ?? true);
   const [coworkMemoryLlmJudgeEnabled, setCoworkMemoryLlmJudgeEnabled] = useState<boolean>(coworkConfig.memoryLlmJudgeEnabled ?? false);
   const [skipMissedJobs, setSkipMissedJobs] = useState<boolean>(coworkConfig.skipMissedJobs ?? true);
+  const [shellGuardMode, setShellGuardMode] = useState<'auto' | 'ask-always' | 'skip-all'>(
+    (coworkConfig.shellGuardMode as 'auto' | 'ask-always' | 'skip-all') ?? 'auto',
+  );
+  const [shellGuardClassifierModel, setShellGuardClassifierModel] = useState<string>(
+    coworkConfig.shellGuardClassifierModel ?? '',
+  );
   const [embeddingEnabled, setEmbeddingEnabled] = useState<boolean>(coworkConfig.embeddingEnabled ?? false);
   const [embeddingProvider, setEmbeddingProvider] = useState<string>(coworkConfig.embeddingProvider ?? 'openai');
   const [embeddingModel, setEmbeddingModel] = useState<string>(coworkConfig.embeddingModel ?? '');
@@ -834,6 +840,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     setCoworkMemoryEnabled(coworkConfig.memoryEnabled ?? true);
     setCoworkMemoryLlmJudgeEnabled(coworkConfig.memoryLlmJudgeEnabled ?? false);
     setSkipMissedJobs(coworkConfig.skipMissedJobs ?? true);
+    setShellGuardMode((coworkConfig.shellGuardMode as 'auto' | 'ask-always' | 'skip-all') ?? 'auto');
+    setShellGuardClassifierModel(coworkConfig.shellGuardClassifierModel ?? '');
     setEmbeddingEnabled(coworkConfig.embeddingEnabled ?? false);
     setEmbeddingProvider(coworkConfig.embeddingProvider ?? 'openai');
     setEmbeddingModel(coworkConfig.embeddingModel ?? '');
@@ -848,6 +856,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     coworkConfig.memoryLlmJudgeEnabled,
     coworkConfig.openClawSessionPolicy?.keepAlive,
     coworkConfig.skipMissedJobs,
+    coworkConfig.shellGuardMode,
+    coworkConfig.shellGuardClassifierModel,
     coworkConfig.embeddingEnabled,
     coworkConfig.embeddingProvider,
     coworkConfig.embeddingModel,
@@ -1488,6 +1498,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     || coworkMemoryEnabled !== coworkConfig.memoryEnabled
     || coworkMemoryLlmJudgeEnabled !== coworkConfig.memoryLlmJudgeEnabled
     || skipMissedJobs !== (coworkConfig.skipMissedJobs ?? true)
+    || shellGuardMode !== ((coworkConfig.shellGuardMode as 'auto' | 'ask-always' | 'skip-all') ?? 'auto')
+    || shellGuardClassifierModel !== (coworkConfig.shellGuardClassifierModel ?? '')
     || openClawSessionKeepAlive !== (coworkConfig.openClawSessionPolicy?.keepAlive || OpenClawSessionKeepAliveValues.ThirtyDays)
     || embeddingEnabled !== (coworkConfig.embeddingEnabled ?? false)
     || embeddingProvider !== (coworkConfig.embeddingProvider ?? 'openai')
@@ -1846,6 +1858,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
           memoryEnabled: coworkMemoryEnabled,
           memoryLlmJudgeEnabled: coworkMemoryLlmJudgeEnabled,
           skipMissedJobs,
+          shellGuardMode,
+          shellGuardClassifierModel,
           embeddingEnabled,
           embeddingProvider,
           embeddingModel,
@@ -2754,6 +2768,70 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
                   />
                 </button>
               </label>
+            </div>
+
+            {/* Shell Guard Section */}
+            <div>
+              <h4 className="text-sm font-medium text-foreground mb-3">
+                {i18nService.t('shellGuardTitle')}
+              </h4>
+              <p className="text-xs text-secondary mb-3">
+                {i18nService.t('shellGuardDescription')}
+              </p>
+              <div className="space-y-2 mb-3">
+                {([
+                  { value: 'auto' as const, label: i18nService.t('shellGuardModeAuto'), desc: i18nService.t('shellGuardModeAutoDesc') },
+                  { value: 'ask-always' as const, label: i18nService.t('shellGuardModeAskAlways'), desc: i18nService.t('shellGuardModeAskAlwaysDesc') },
+                  { value: 'skip-all' as const, label: i18nService.t('shellGuardModeSkipAll'), desc: i18nService.t('shellGuardModeSkipAllDesc') },
+                ]).map((opt) => {
+                  const isSelected = shellGuardMode === opt.value;
+                  const isDanger = opt.value === 'skip-all';
+                  return (
+                    <label
+                      key={opt.value}
+                      className={`flex items-start gap-3 cursor-pointer rounded-lg border-2 p-3 transition-colors ${
+                        isSelected
+                          ? isDanger
+                            ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                            : 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/40'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="shellGuardMode"
+                        value={opt.value}
+                        checked={isSelected}
+                        onChange={() => setShellGuardMode(opt.value)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className={`text-sm font-medium ${isDanger ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+                          {opt.label}
+                        </div>
+                        <div className="text-xs text-secondary mt-0.5">{opt.desc}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              {shellGuardMode === 'auto' && (
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">
+                    {i18nService.t('shellGuardClassifierModel')}
+                  </label>
+                  <input
+                    type="text"
+                    value={shellGuardClassifierModel}
+                    onChange={(e) => setShellGuardClassifierModel(e.target.value)}
+                    placeholder={i18nService.t('shellGuardClassifierModelPlaceholder')}
+                    className="w-full px-3 py-2 text-sm rounded border border-border bg-background text-foreground focus:outline-none focus:border-primary"
+                  />
+                  <p className="text-xs text-secondary mt-1">
+                    {i18nService.t('shellGuardClassifierModelHint')}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Appearance Section — mode selector + theme gallery */}

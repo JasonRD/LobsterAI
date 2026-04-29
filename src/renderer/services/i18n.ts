@@ -1192,6 +1192,19 @@ const translations: Record<LanguageType, Record<string, string>> = {
     skipMissedJobs: '跳过未执行任务',
     skipMissedJobsDescription: '启动时跳过离线期间未触发的定时任务，不补充执行（保存后生效）',
 
+    // Shell guard
+    shellGuardTitle: 'Shell 命令安全护栏',
+    shellGuardDescription: '在 AI 执行 Shell 命令前进行审查，防止误操作（如强推、删除、提权、远程脚本）。',
+    shellGuardModeAuto: '自动模式（推荐）',
+    shellGuardModeAutoDesc: '硬黑白名单 + LLM 分类器审查；危险命令自动拒绝并告知 AI，常见安全命令直通。',
+    shellGuardModeAskAlways: '总是询问',
+    shellGuardModeAskAlwaysDesc: '所有 Shell 命令都弹窗确认（旧版本兼容行为，最严格）。',
+    shellGuardModeSkipAll: '全部放行（危险）',
+    shellGuardModeSkipAllDesc: '跳过所有审查，仅在你完全信任 AI 且工作目录隔离时启用。',
+    shellGuardClassifierModel: '分类器模型',
+    shellGuardClassifierModelPlaceholder: '留空使用主模型',
+    shellGuardClassifierModelHint: '可选：用一个轻量模型做安全审查以降低延迟和成本。',
+
     // 定时任务
     scheduledTasks: '定时任务',
     scheduledTasksTitle: '定时任务',
@@ -2777,6 +2790,24 @@ const translations: Record<LanguageType, Record<string, string>> = {
     skipMissedJobs: 'Skip Missed Scheduled Jobs',
     skipMissedJobsDescription:
       'Skip jobs that were missed while the app was offline (applies after Save)',
+
+    // Shell guard
+    shellGuardTitle: 'Shell Command Safety Guard',
+    shellGuardDescription:
+      'Reviews shell commands the AI proposes before execution to prevent accidents (force-push, mass delete, privilege escalation, remote scripts).',
+    shellGuardModeAuto: 'Auto (recommended)',
+    shellGuardModeAutoDesc:
+      'Hard deny/allow rules + LLM classifier review. Dangerous commands are auto-denied with a reason fed back to the agent; common safe commands pass through.',
+    shellGuardModeAskAlways: 'Ask Always',
+    shellGuardModeAskAlwaysDesc:
+      'Every shell command pops a confirmation dialog (legacy behaviour, strictest).',
+    shellGuardModeSkipAll: 'Skip All (dangerous)',
+    shellGuardModeSkipAllDesc:
+      'Skip all reviews. Only enable if you fully trust the AI and the working directory is isolated.',
+    shellGuardClassifierModel: 'Classifier Model',
+    shellGuardClassifierModelPlaceholder: 'Leave blank to use main model',
+    shellGuardClassifierModelHint:
+      'Optional: pick a lightweight model for safety review to reduce latency and cost.',
 
     // Scheduled Tasks
     scheduledTasks: 'Scheduled Tasks',
