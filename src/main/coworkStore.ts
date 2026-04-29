@@ -6,6 +6,14 @@ import os from 'os';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  clampClassifierTimeoutMs,
+  clampEscalateThreshold,
+  normalizeShellGuardMode,
+  SHELL_GUARD_DEFAULT_CLASSIFIER_MODEL,
+  ShellGuardMode,
+} from './libs/shellGuard/constants';
+
 
 // Default working directory for new users
 const getDefaultWorkingDirectory = (): string => {
@@ -455,6 +463,10 @@ export interface CoworkConfig {
   embeddingVectorWeight: number;
   embeddingRemoteBaseUrl: string;
   embeddingRemoteApiKey: string;
+  shellGuardMode: ShellGuardMode;
+  shellGuardClassifierModel: string;
+  shellGuardClassifierTimeoutMs: number;
+  shellGuardEscalateThreshold: number;
 }
 
 export type CoworkConfigUpdate = Partial<Pick<
@@ -473,6 +485,10 @@ CoworkConfig,
   | 'embeddingModel'
   | 'embeddingLocalModelPath'
   | 'embeddingVectorWeight'
+  | 'shellGuardMode'
+  | 'shellGuardClassifierModel'
+  | 'shellGuardClassifierTimeoutMs'
+  | 'shellGuardEscalateThreshold'
   | 'embeddingRemoteBaseUrl'
   | 'embeddingRemoteApiKey'
 >>;
@@ -1059,6 +1075,10 @@ export class CoworkStore {
       'embeddingVectorWeight',
       'embeddingRemoteBaseUrl',
       'embeddingRemoteApiKey',
+      'shellGuardMode',
+      'shellGuardClassifierModel',
+      'shellGuardClassifierTimeoutMs',
+      'shellGuardEscalateThreshold',
     ] as const;
     const configRows = this.getAll<{ key: string; value: string }>(
       `SELECT key, value FROM cowork_config WHERE key IN (${configKeys.map(() => '?').join(', ')})`,
@@ -1092,6 +1112,10 @@ export class CoworkStore {
       embeddingVectorWeight: parseEmbeddingVectorWeight(cfg.get('embeddingVectorWeight')),
       embeddingRemoteBaseUrl: cfg.get('embeddingRemoteBaseUrl') || DEFAULT_EMBEDDING_REMOTE_BASE_URL,
       embeddingRemoteApiKey: cfg.get('embeddingRemoteApiKey') || DEFAULT_EMBEDDING_REMOTE_API_KEY,
+      shellGuardMode: normalizeShellGuardMode(cfg.get('shellGuardMode')),
+      shellGuardClassifierModel: cfg.get('shellGuardClassifierModel') || SHELL_GUARD_DEFAULT_CLASSIFIER_MODEL,
+      shellGuardClassifierTimeoutMs: clampClassifierTimeoutMs(Number(cfg.get('shellGuardClassifierTimeoutMs'))),
+      shellGuardEscalateThreshold: clampEscalateThreshold(Number(cfg.get('shellGuardEscalateThreshold'))),
     };
   }
 
@@ -1145,6 +1169,26 @@ export class CoworkStore {
     }
     if (config.embeddingRemoteApiKey !== undefined) {
       this.upsertConfig('embeddingRemoteApiKey', String(config.embeddingRemoteApiKey), now);
+    }
+    if (config.shellGuardMode !== undefined) {
+      this.upsertConfig('shellGuardMode', normalizeShellGuardMode(config.shellGuardMode), now);
+    }
+    if (config.shellGuardClassifierModel !== undefined) {
+      this.upsertConfig('shellGuardClassifierModel', String(config.shellGuardClassifierModel), now);
+    }
+    if (config.shellGuardClassifierTimeoutMs !== undefined) {
+      this.upsertConfig(
+        'shellGuardClassifierTimeoutMs',
+        String(clampClassifierTimeoutMs(config.shellGuardClassifierTimeoutMs)),
+        now,
+      );
+    }
+    if (config.shellGuardEscalateThreshold !== undefined) {
+      this.upsertConfig(
+        'shellGuardEscalateThreshold',
+        String(clampEscalateThreshold(config.shellGuardEscalateThreshold)),
+        now,
+      );
     }
   }
 

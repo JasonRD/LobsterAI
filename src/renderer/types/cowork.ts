@@ -15,6 +15,11 @@ export type CoworkMessageType = 'user' | 'assistant' | 'tool_use' | 'tool_result
 export type CoworkExecutionMode = 'auto' | 'local' | 'sandbox';
 export type CoworkAgentEngine = 'openclaw';
 
+// Shell-guard mode for the bash permission flow.  Mirrors the canonical
+// definition in src/main/libs/shellGuard/constants.ts.  Renderer code uses
+// this string union type to avoid importing main-process modules.
+export type CoworkShellGuardMode = 'ask-always' | 'auto' | 'skip-all';
+
 export const OpenClawSessionKeepAlive = {
   OneDay: '1d',
   SevenDays: '7d',
@@ -90,6 +95,10 @@ export interface CoworkConfig {
   embeddingVectorWeight: number;
   embeddingRemoteBaseUrl: string;
   embeddingRemoteApiKey: string;
+  shellGuardMode: CoworkShellGuardMode;
+  shellGuardClassifierModel: string;
+  shellGuardClassifierTimeoutMs: number;
+  shellGuardEscalateThreshold: number;
   openClawSessionPolicy: OpenClawSessionPolicyConfig;
 }
 
@@ -111,6 +120,10 @@ export type CoworkConfigUpdate = Partial<Pick<
   | 'embeddingVectorWeight'
   | 'embeddingRemoteBaseUrl'
   | 'embeddingRemoteApiKey'
+  | 'shellGuardMode'
+  | 'shellGuardClassifierModel'
+  | 'shellGuardClassifierTimeoutMs'
+  | 'shellGuardEscalateThreshold'
 >>;
 
 export interface CoworkApiConfig {

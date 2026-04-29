@@ -71,6 +71,10 @@ interface CoworkConfig {
   embeddingVectorWeight: number;
   embeddingRemoteBaseUrl: string;
   embeddingRemoteApiKey: string;
+  shellGuardMode: 'ask-always' | 'auto' | 'skip-all';
+  shellGuardClassifierModel: string;
+  shellGuardClassifierTimeoutMs: number;
+  shellGuardEscalateThreshold: number;
   openClawSessionPolicy: OpenClawSessionPolicyConfig;
 }
 
@@ -92,6 +96,10 @@ type CoworkConfigUpdate = Partial<Pick<
   | 'embeddingVectorWeight'
   | 'embeddingRemoteBaseUrl'
   | 'embeddingRemoteApiKey'
+  | 'shellGuardMode'
+  | 'shellGuardClassifierModel'
+  | 'shellGuardClassifierTimeoutMs'
+  | 'shellGuardEscalateThreshold'
 >>;
 
 interface CoworkUserMemoryEntry {

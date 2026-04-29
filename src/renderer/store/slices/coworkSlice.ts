@@ -61,6 +61,10 @@ const initialState: CoworkState = {
     embeddingVectorWeight: 0.7,
     embeddingRemoteBaseUrl: '',
     embeddingRemoteApiKey: '',
+    shellGuardMode: 'auto',
+    shellGuardClassifierModel: '',
+    shellGuardClassifierTimeoutMs: 8000,
+    shellGuardEscalateThreshold: 3,
     openClawSessionPolicy: {
       keepAlive: '30d',
     },
