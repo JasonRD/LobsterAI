@@ -1871,9 +1871,11 @@ export class OpenClawConfigSync {
       ? this.syncManagedSessionStore(providerSelection, allProvidersMap)
       : false;
 
-    // Ensure exec-approvals.json has security=full + ask=off so the gateway
-    // never triggers approval-pending for any command.
-    this.ensureExecApprovalDefaults();
+    // Ensure exec-approvals.json reflects the current shell-guard mode.
+    // skip-all → ask=off (gateway runs everything without prompting us).
+    // auto / ask-always → ask=on (gateway forwards every shell command to
+    //   handleApprovalRequested so shell-guard can evaluate it).
+    this.ensureExecApprovalDefaults(coworkConfig.shellGuardMode);
 
     // Sync AGENTS.md with skills routing prompt to the OpenClaw workspace directory.
     // This runs on every sync regardless of openclaw.json changes, because skills
@@ -2051,13 +2053,15 @@ export class OpenClawConfigSync {
   }
 
   /**
-   * Ensures exec-approvals.json under the LobsterAI-managed openclaw home has
-   * security=full + ask=off so the gateway never triggers approval-pending
-   * for any command. The path must match the OPENCLAW_HOME env var passed to
-   * the gateway process so both sides read/write the same file.
-   * Delete-command protection is handled via the system prompt instead.
+   * Ensures exec-approvals.json under the LobsterAI-managed openclaw home
+   * matches the current shell-guard mode.  When the user opts out via
+   * skip-all the gateway is configured with ask=off so it executes commands
+   * directly.  Otherwise ask=on routes every command through our
+   * handleApprovalRequested → shell-guard pipeline.
    */
-  private ensureExecApprovalDefaults(): void {
+  private ensureExecApprovalDefaults(shellGuardMode?: string | null): void {
+    const askPrompt = shellGuardMode !== 'skip-all';
+    const desiredAsk = askPrompt ? 'always' : 'off';
     const filePath = path.join(this.engineManager.getBaseDir(), '.openclaw', 'exec-approvals.json');
 
     type AgentEntry = { security?: string; ask?: string; [key: string]: unknown };
@@ -2083,10 +2087,10 @@ export class OpenClawConfigSync {
     if (!file.agents.main) file.agents.main = {};
     const agent = file.agents.main;
 
-    if (agent.security === 'full' && agent.ask === 'off') return;
+    if (agent.security === 'full' && agent.ask === desiredAsk) return;
 
     agent.security = 'full';
-    agent.ask = 'off';
+    agent.ask = desiredAsk;
 
     try {
       const dir = path.dirname(filePath);
@@ -2094,7 +2098,7 @@ export class OpenClawConfigSync {
         fs.mkdirSync(dir, { recursive: true });
       }
       this.atomicWriteFile(filePath, `${JSON.stringify(file, null, 2)}\n`);
-      console.log('[OpenClawConfigSync] set exec-approvals security=full ask=off');
+      console.log(`[OpenClawConfigSync] set exec-approvals security=full ask=${desiredAsk}`);
     } catch (error) {
       console.warn('[OpenClawConfigSync] failed to write exec-approvals.json:', error);
     }
