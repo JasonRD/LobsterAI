@@ -199,7 +199,9 @@ describe('CLASSIFIER_SYSTEM_PROMPT', () => {
   test('mentions key categories', () => {
     expect(CLASSIFIER_SYSTEM_PROMPT).toContain('JSON');
     expect(CLASSIFIER_SYSTEM_PROMPT).toContain('ALLOW');
+    expect(CLASSIFIER_SYSTEM_PROMPT).toContain('ESCALATE');
     expect(CLASSIFIER_SYSTEM_PROMPT).toContain('BLOCK');
-    expect(CLASSIFIER_SYSTEM_PROMPT).toContain('curl|sh');
+    expect(CLASSIFIER_SYSTEM_PROMPT).toContain('curl');
+    expect(CLASSIFIER_SYSTEM_PROMPT).toContain('suggestedAlternative');
   });
 });

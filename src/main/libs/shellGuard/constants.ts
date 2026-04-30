@@ -25,7 +25,10 @@ export type ShellGuardVerdict = typeof ShellGuardVerdict[keyof typeof ShellGuard
 export const ShellGuardSource = {
   HardAllow: 'hard-allow',
   HardDeny: 'hard-deny',
+  UserHardAllow: 'user-hard-allow',
+  UserHardDeny: 'user-hard-deny',
   Classifier: 'classifier',
+  ClassifierEscalate: 'classifier-escalate',
   ClassifierFallback: 'classifier-fallback',
   Escalate: 'escalate',
   ModeSkipAll: 'mode-skip-all',
@@ -36,6 +39,7 @@ export type ShellGuardSource = typeof ShellGuardSource[keyof typeof ShellGuardSo
 
 export const ShellGuardClassifierResult = {
   Allow: 'ALLOW',
+  Escalate: 'ESCALATE',
   Block: 'BLOCK',
 } as const;
 
