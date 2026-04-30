@@ -1204,6 +1204,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
     shellGuardClassifierModel: '分类器模型',
     shellGuardClassifierModelPlaceholder: '留空使用主模型',
     shellGuardClassifierModelHint: '可选：用一个轻量模型做安全审查以降低延迟和成本。',
+    shellGuardClassifierModelDefault: '使用主模型（默认）',
+    shellGuardClassifierModelCustom: '自定义…',
+    shellGuardClassifierModelCustomPlaceholder: '输入模型 ID',
     shellGuardUserDenyRulesLabel: '自定义拒绝规则（每行一条）',
     shellGuardUserDenyRulesHint:
       '匹配的命令直接拒绝（优先级最高）。语法：/正则/、glob（* 或 ?）、或前缀匹配。# 开头为注释。',
@@ -2816,6 +2819,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
     shellGuardClassifierModelPlaceholder: 'Leave blank to use main model',
     shellGuardClassifierModelHint:
       'Optional: pick a lightweight model for safety review to reduce latency and cost.',
+    shellGuardClassifierModelDefault: 'Use main model (default)',
+    shellGuardClassifierModelCustom: 'Custom…',
+    shellGuardClassifierModelCustomPlaceholder: 'Enter model ID',
     shellGuardUserDenyRulesLabel: 'Custom deny rules (one per line)',
     shellGuardUserDenyRulesHint:
       'Matched commands are blocked immediately (highest priority). Syntax: /regex/, glob (* or ?), or literal prefix. Lines starting with # are comments.',

@@ -2829,23 +2829,72 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
                   );
                 })}
               </div>
-              {shellGuardMode === 'auto' && (
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">
-                    {i18nService.t('shellGuardClassifierModel')}
-                  </label>
-                  <input
-                    type="text"
-                    value={shellGuardClassifierModel}
-                    onChange={(e) => setShellGuardClassifierModel(e.target.value)}
-                    placeholder={i18nService.t('shellGuardClassifierModelPlaceholder')}
-                    className="w-full px-3 py-2 text-sm rounded border border-border bg-background text-foreground focus:outline-none focus:border-primary"
-                  />
-                  <p className="text-xs text-secondary mt-1">
-                    {i18nService.t('shellGuardClassifierModelHint')}
-                  </p>
-                </div>
-              )}
+              {shellGuardMode === 'auto' && (() => {
+                const CUSTOM_SENTINEL = '__custom__';
+                const knownModelIds = new Set<string>();
+                const providerGroups: { key: string; label: string; models: { id: string; name: string }[] }[] = [];
+                providerKeys.forEach((pk) => {
+                  const p = providers[pk];
+                  if (!p?.enabled) return;
+                  const models = (p.models ?? []).filter((m) => m && m.id);
+                  if (models.length === 0) return;
+                  models.forEach((m) => knownModelIds.add(m.id));
+                  providerGroups.push({
+                    key: pk,
+                    label: getProviderDisplayName(pk),
+                    models: models.map((m) => ({ id: m.id, name: m.name || m.id })),
+                  });
+                });
+                const trimmed = shellGuardClassifierModel.trim();
+                const isUnknownCustom = trimmed.length > 0 && !knownModelIds.has(trimmed);
+                const selectValue = trimmed === ''
+                  ? ''
+                  : isUnknownCustom
+                    ? CUSTOM_SENTINEL
+                    : trimmed;
+                return (
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1">
+                      {i18nService.t('shellGuardClassifierModel')}
+                    </label>
+                    <select
+                      value={selectValue}
+                      onChange={(e) => {
+                        if (e.target.value === CUSTOM_SENTINEL) {
+                          if (!isUnknownCustom) setShellGuardClassifierModel(' ');
+                        } else {
+                          setShellGuardClassifierModel(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-sm rounded border border-border bg-background text-foreground focus:outline-none focus:border-primary"
+                    >
+                      <option value="">{i18nService.t('shellGuardClassifierModelDefault')}</option>
+                      {providerGroups.map((g) => (
+                        <optgroup key={g.key} label={g.label}>
+                          {g.models.map((m) => (
+                            <option key={`${g.key}:${m.id}`} value={m.id}>
+                              {m.name}{m.name !== m.id ? ` (${m.id})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      <option value={CUSTOM_SENTINEL}>{i18nService.t('shellGuardClassifierModelCustom')}</option>
+                    </select>
+                    {selectValue === CUSTOM_SENTINEL && (
+                      <input
+                        type="text"
+                        value={trimmed === '' ? '' : shellGuardClassifierModel}
+                        onChange={(e) => setShellGuardClassifierModel(e.target.value)}
+                        placeholder={i18nService.t('shellGuardClassifierModelCustomPlaceholder')}
+                        className="mt-2 w-full px-3 py-2 text-sm rounded border border-border bg-background text-foreground focus:outline-none focus:border-primary"
+                      />
+                    )}
+                    <p className="text-xs text-secondary mt-1">
+                      {i18nService.t('shellGuardClassifierModelHint')}
+                    </p>
+                  </div>
+                );
+              })()}
 
               {shellGuardMode !== 'skip-all' && (
                 <div className="mt-4 space-y-3">
