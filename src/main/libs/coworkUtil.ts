@@ -1448,6 +1448,20 @@ function resolveSessionTitleApiConfig(): { config: SessionTitleApiConfig | null;
     };
   }
 
+  // OpenAI-compatible providers (gpt, copilot, stepfun, youdaozhiyun, lobsterai
+  // server, etc.) speak the OpenAI chat-completions protocol.  resolveCurrentApiConfig
+  // returns apiType='openai' for these (the URL points at the local compat proxy).
+  if (resolution.config.apiType === 'openai') {
+    return {
+      config: {
+        protocol: CoworkModelProtocol.OpenAICompat,
+        apiKey: resolution.config.apiKey,
+        baseURL: resolution.config.baseURL,
+        model: resolution.config.model,
+      },
+    };
+  }
+
   return {
     config: {
       protocol: CoworkModelProtocol.Anthropic,

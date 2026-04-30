@@ -3,11 +3,13 @@ import { createHash } from 'node:crypto';
 import {
   buildAnthropicMessagesUrl,
   buildGeminiGenerateContentUrl,
+  buildOpenAIChatCompletionsUrl,
   type CoworkLlmApiConfig,
   CoworkModelProtocol,
   extractApiErrorSnippet,
   extractTextFromAnthropicResponse,
   extractTextFromGeminiResponse,
+  extractTextFromOpenAIResponse,
 } from '../coworkModelApi';
 import {
   SHELL_GUARD_CACHE_TTL_MS,
@@ -180,35 +182,55 @@ export function parseClassifierResponse(raw: string): ClassifierVerdict | null {
 }
 
 const defaultTransport: ClassifierTransport = async (req) => {
-  const url = req.config.protocol === CoworkModelProtocol.GeminiNative
-    ? buildGeminiGenerateContentUrl(req.config.baseURL, req.modelOverride || req.config.model)
-    : buildAnthropicMessagesUrl(req.config.baseURL);
+  const isGemini = req.config.protocol === CoworkModelProtocol.GeminiNative;
+  const isOpenAI = req.config.protocol === CoworkModelProtocol.OpenAICompat;
 
-  const headers: Record<string, string> = req.config.protocol === CoworkModelProtocol.GeminiNative
+  const url = isGemini
+    ? buildGeminiGenerateContentUrl(req.config.baseURL, req.modelOverride || req.config.model)
+    : isOpenAI
+      ? buildOpenAIChatCompletionsUrl(req.config.baseURL)
+      : buildAnthropicMessagesUrl(req.config.baseURL);
+
+  const headers: Record<string, string> = isGemini
     ? {
       'Content-Type': 'application/json',
       'x-goog-api-key': req.config.apiKey,
     }
-    : {
-      'Content-Type': 'application/json',
-      'x-api-key': req.config.apiKey,
-      'anthropic-version': '2023-06-01',
-    };
+    : isOpenAI
+      ? {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${req.config.apiKey}`,
+      }
+      : {
+        'Content-Type': 'application/json',
+        'x-api-key': req.config.apiKey,
+        'anthropic-version': '2023-06-01',
+      };
 
-  const body = req.config.protocol === CoworkModelProtocol.GeminiNative
+  const body = isGemini
     ? {
       contents: [
         { role: 'user', parts: [{ text: `${req.systemPrompt}\n\n${req.userPrompt}` }] },
       ],
       generationConfig: { maxOutputTokens: 200, temperature: 0 },
     }
-    : {
-      model: req.modelOverride || req.config.model,
-      max_tokens: 200,
-      temperature: 0,
-      system: req.systemPrompt,
-      messages: [{ role: 'user', content: req.userPrompt }],
-    };
+    : isOpenAI
+      ? {
+        model: req.modelOverride || req.config.model,
+        max_tokens: 200,
+        temperature: 0,
+        messages: [
+          { role: 'system', content: req.systemPrompt },
+          { role: 'user', content: req.userPrompt },
+        ],
+      }
+      : {
+        model: req.modelOverride || req.config.model,
+        max_tokens: 200,
+        temperature: 0,
+        system: req.systemPrompt,
+        messages: [{ role: 'user', content: req.userPrompt }],
+      };
 
   const response = await fetch(url, {
     method: 'POST',
@@ -223,9 +245,11 @@ const defaultTransport: ClassifierTransport = async (req) => {
   }
 
   const payload = await response.json();
-  return req.config.protocol === CoworkModelProtocol.GeminiNative
+  return isGemini
     ? extractTextFromGeminiResponse(payload)
-    : extractTextFromAnthropicResponse(payload);
+    : isOpenAI
+      ? extractTextFromOpenAIResponse(payload)
+      : extractTextFromAnthropicResponse(payload);
 };
 
 class ClassifierHttpError extends Error {

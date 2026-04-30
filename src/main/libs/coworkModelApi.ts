@@ -1,6 +1,7 @@
 export const CoworkModelProtocol = {
   Anthropic: 'anthropic',
   GeminiNative: 'gemini_native',
+  OpenAICompat: 'openai_compat',
 } as const;
 
 export type CoworkModelProtocol = typeof CoworkModelProtocol[keyof typeof CoworkModelProtocol];
@@ -50,6 +51,12 @@ export type CoworkLlmApiConfig =
   }
   | {
     protocol: typeof CoworkModelProtocol.GeminiNative;
+    apiKey: string;
+    baseURL: string;
+    model: string;
+  }
+  | {
+    protocol: typeof CoworkModelProtocol.OpenAICompat;
     apiKey: string;
     baseURL: string;
     model: string;
@@ -169,5 +176,42 @@ export function extractTextFromGeminiResponse(payload: unknown): string {
     return record.text.trim();
   }
 
+  return '';
+}
+
+export function buildOpenAIChatCompletionsUrl(baseUrl: string): string {
+  const normalized = baseUrl.trim().replace(/\/+$/, '');
+  if (!normalized) {
+    return '/v1/chat/completions';
+  }
+  if (normalized.endsWith('/chat/completions')) {
+    return normalized;
+  }
+  if (/\/v\d+(?:beta)?$/.test(normalized)) {
+    return `${normalized}/chat/completions`;
+  }
+  return `${normalized}/v1/chat/completions`;
+}
+
+export function extractTextFromOpenAIResponse(payload: unknown): string {
+  const record = toRecord(payload);
+  if (!record) return '';
+
+  const choices = record.choices;
+  if (Array.isArray(choices) && choices.length > 0) {
+    const first = toRecord(choices[0]);
+    const message = toRecord(first?.message);
+    const content = message?.content;
+    if (typeof content === 'string' && content.trim()) {
+      return content.trim();
+    }
+    if (Array.isArray(content)) {
+      const joined = collectTextFromUnknown(content).join('\n').trim();
+      if (joined) return joined;
+    }
+    if (typeof first?.text === 'string') {
+      return first.text.trim();
+    }
+  }
   return '';
 }
