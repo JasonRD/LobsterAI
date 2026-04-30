@@ -65,8 +65,8 @@ const translations: Record<LanguageType, Record<string, string>> = {
     imErrorPrefix: '处理消息时出错',
 
     // Exec approval continuation
-    execApprovalApproved: '用户已确认执行该命令，请检查执行结果并继续。',
-    execApprovalDenied: '用户已拒绝执行该命令。',
+    execApprovalApproved: '[系统] 上一条 Bash 命令已被用户批准并已执行，结果已附加在对话历史中。请直接基于已有的执行结果继续——**不要再次调用 Bash 重新执行该命令**。',
+    execApprovalDenied: '用户已拒绝执行该命令。请改用其他方法或告知用户为什么需要这条命令。',
 
     // Shell guard
     shellGuardAllowed: '🛡️ Shell 安全护栏已放行：{command}',
@@ -328,8 +328,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
 
     // Exec approval continuation
     execApprovalApproved:
-      'The user approved the command execution. Please check the result and continue.',
-    execApprovalDenied: 'The user denied the command execution.',
+      '[system] The previous Bash command has been approved by the user and executed; its result is already appended to the conversation history above. Continue from that result — **DO NOT invoke Bash again to re-run the same command**.',
+    execApprovalDenied:
+      'The user denied the command execution. Use a different approach or explain to the user why this command is needed.',
 
     // Shell guard
     shellGuardAllowed: '🛡️ Shell guard allowed: {command}',
