@@ -1204,6 +1204,14 @@ const translations: Record<LanguageType, Record<string, string>> = {
     shellGuardClassifierModel: '分类器模型',
     shellGuardClassifierModelPlaceholder: '留空使用主模型',
     shellGuardClassifierModelHint: '可选：用一个轻量模型做安全审查以降低延迟和成本。',
+    shellGuardUserDenyRulesLabel: '自定义拒绝规则（每行一条）',
+    shellGuardUserDenyRulesHint:
+      '匹配的命令直接拒绝（优先级最高）。语法：/正则/、glob（* 或 ?）、或前缀匹配。# 开头为注释。',
+    shellGuardUserAllowRulesLabel: '自定义放行规则（每行一条）',
+    shellGuardUserAllowRulesHint:
+      '匹配的命令直接放行，不调用分类器（仍受内置硬黑名单约束）。语法同上。',
+    shellGuardUserRulesPlaceholder:
+      '# 示例\n/^docker\\s+rm\\b/\ngit push * --force\npnpm install',
 
     // 定时任务
     scheduledTasks: '定时任务',
@@ -2808,6 +2816,14 @@ const translations: Record<LanguageType, Record<string, string>> = {
     shellGuardClassifierModelPlaceholder: 'Leave blank to use main model',
     shellGuardClassifierModelHint:
       'Optional: pick a lightweight model for safety review to reduce latency and cost.',
+    shellGuardUserDenyRulesLabel: 'Custom deny rules (one per line)',
+    shellGuardUserDenyRulesHint:
+      'Matched commands are blocked immediately (highest priority). Syntax: /regex/, glob (* or ?), or literal prefix. Lines starting with # are comments.',
+    shellGuardUserAllowRulesLabel: 'Custom allow rules (one per line)',
+    shellGuardUserAllowRulesHint:
+      'Matched commands skip the classifier and run directly (built-in hard-deny still applies). Same syntax as above.',
+    shellGuardUserRulesPlaceholder:
+      '# example\n/^docker\\s+rm\\b/\ngit push * --force\npnpm install',
 
     // Scheduled Tasks
     scheduledTasks: 'Scheduled Tasks',

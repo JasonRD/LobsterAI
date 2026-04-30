@@ -812,6 +812,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
   const [shellGuardClassifierModel, setShellGuardClassifierModel] = useState<string>(
     coworkConfig.shellGuardClassifierModel ?? '',
   );
+  const [shellGuardUserDenyRules, setShellGuardUserDenyRules] = useState<string>(
+    coworkConfig.shellGuardUserDenyRules ?? '',
+  );
+  const [shellGuardUserAllowRules, setShellGuardUserAllowRules] = useState<string>(
+    coworkConfig.shellGuardUserAllowRules ?? '',
+  );
   const [embeddingEnabled, setEmbeddingEnabled] = useState<boolean>(coworkConfig.embeddingEnabled ?? false);
   const [embeddingProvider, setEmbeddingProvider] = useState<string>(coworkConfig.embeddingProvider ?? 'openai');
   const [embeddingModel, setEmbeddingModel] = useState<string>(coworkConfig.embeddingModel ?? '');
@@ -842,6 +848,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     setSkipMissedJobs(coworkConfig.skipMissedJobs ?? true);
     setShellGuardMode((coworkConfig.shellGuardMode as 'auto' | 'ask-always' | 'skip-all') ?? 'auto');
     setShellGuardClassifierModel(coworkConfig.shellGuardClassifierModel ?? '');
+    setShellGuardUserDenyRules(coworkConfig.shellGuardUserDenyRules ?? '');
+    setShellGuardUserAllowRules(coworkConfig.shellGuardUserAllowRules ?? '');
     setEmbeddingEnabled(coworkConfig.embeddingEnabled ?? false);
     setEmbeddingProvider(coworkConfig.embeddingProvider ?? 'openai');
     setEmbeddingModel(coworkConfig.embeddingModel ?? '');
@@ -858,6 +866,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     coworkConfig.skipMissedJobs,
     coworkConfig.shellGuardMode,
     coworkConfig.shellGuardClassifierModel,
+    coworkConfig.shellGuardUserDenyRules,
+    coworkConfig.shellGuardUserAllowRules,
     coworkConfig.embeddingEnabled,
     coworkConfig.embeddingProvider,
     coworkConfig.embeddingModel,
@@ -1500,6 +1510,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     || skipMissedJobs !== (coworkConfig.skipMissedJobs ?? true)
     || shellGuardMode !== ((coworkConfig.shellGuardMode as 'auto' | 'ask-always' | 'skip-all') ?? 'auto')
     || shellGuardClassifierModel !== (coworkConfig.shellGuardClassifierModel ?? '')
+    || shellGuardUserDenyRules !== (coworkConfig.shellGuardUserDenyRules ?? '')
+    || shellGuardUserAllowRules !== (coworkConfig.shellGuardUserAllowRules ?? '')
     || openClawSessionKeepAlive !== (coworkConfig.openClawSessionPolicy?.keepAlive || OpenClawSessionKeepAliveValues.ThirtyDays)
     || embeddingEnabled !== (coworkConfig.embeddingEnabled ?? false)
     || embeddingProvider !== (coworkConfig.embeddingProvider ?? 'openai')
@@ -1860,6 +1872,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
           skipMissedJobs,
           shellGuardMode,
           shellGuardClassifierModel,
+          shellGuardUserDenyRules,
+          shellGuardUserAllowRules,
           embeddingEnabled,
           embeddingProvider,
           embeddingModel,
@@ -2830,6 +2844,43 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
                   <p className="text-xs text-secondary mt-1">
                     {i18nService.t('shellGuardClassifierModelHint')}
                   </p>
+                </div>
+              )}
+
+              {shellGuardMode !== 'skip-all' && (
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1">
+                      {i18nService.t('shellGuardUserDenyRulesLabel')}
+                    </label>
+                    <textarea
+                      value={shellGuardUserDenyRules}
+                      onChange={(e) => setShellGuardUserDenyRules(e.target.value)}
+                      placeholder={i18nService.t('shellGuardUserRulesPlaceholder')}
+                      rows={4}
+                      spellCheck={false}
+                      className="w-full px-3 py-2 text-xs font-mono rounded border border-border bg-background text-foreground focus:outline-none focus:border-primary"
+                    />
+                    <p className="text-xs text-secondary mt-1">
+                      {i18nService.t('shellGuardUserDenyRulesHint')}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1">
+                      {i18nService.t('shellGuardUserAllowRulesLabel')}
+                    </label>
+                    <textarea
+                      value={shellGuardUserAllowRules}
+                      onChange={(e) => setShellGuardUserAllowRules(e.target.value)}
+                      placeholder={i18nService.t('shellGuardUserRulesPlaceholder')}
+                      rows={4}
+                      spellCheck={false}
+                      className="w-full px-3 py-2 text-xs font-mono rounded border border-border bg-background text-foreground focus:outline-none focus:border-primary"
+                    />
+                    <p className="text-xs text-secondary mt-1">
+                      {i18nService.t('shellGuardUserAllowRulesHint')}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
