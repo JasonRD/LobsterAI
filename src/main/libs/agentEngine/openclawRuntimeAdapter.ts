@@ -46,6 +46,7 @@ import {
   ShellGuardSource,
   ShellGuardVerdict,
 } from '../shellGuard/constants';
+import { parseUserRules } from '../shellGuard/userRules';
 import type {
   CoworkContinueOptions,
   CoworkRuntime,
@@ -3284,6 +3285,8 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         classifierModel: config.shellGuardClassifierModel || undefined,
         classifierTimeoutMs: config.shellGuardClassifierTimeoutMs,
         escalateThreshold: config.shellGuardEscalateThreshold,
+        userDenyRules: parseUserRules(config.shellGuardUserDenyRules),
+        userAllowRules: parseUserRules(config.shellGuardUserAllowRules),
         resolveConfig: () => resolveCoworkLlmApiConfig(),
         escalation: this.getShellGuardEscalation(sessionId),
       });

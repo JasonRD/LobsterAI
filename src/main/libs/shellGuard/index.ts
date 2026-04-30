@@ -17,6 +17,7 @@ import {
   ShellGuardVerdict,
 } from './constants';
 import { evaluateHardRules } from './rules';
+import { matchUserRules, type UserRule } from './userRules';
 
 export interface ShellGuardEvaluation {
   readonly verdict: ShellGuardVerdict;
@@ -26,6 +27,7 @@ export interface ShellGuardEvaluation {
   readonly classifierCached?: boolean;
   readonly classifierError?: string;
   readonly escalationCount?: number;
+  readonly suggestedAlternative?: string;
   readonly mode: ShellGuardMode;
 }
 
@@ -38,6 +40,8 @@ export interface ShellGuardEvaluateOptions {
   readonly classifierModel?: string;
   readonly classifierTimeoutMs?: number;
   readonly escalateThreshold?: number;
+  readonly userDenyRules?: readonly UserRule[];
+  readonly userAllowRules?: readonly UserRule[];
   readonly resolveConfig: () => { config: CoworkLlmApiConfig | null; error?: string };
   readonly transport?: ClassifierTransport;
   readonly cache?: ClassifierCache;
@@ -106,6 +110,20 @@ export async function evaluateShellGuard(
   }
 
   // ShellGuardMode.Auto from here on.
+  // Evaluation order: UserHardDeny → HardDeny → UserHardAllow → HardAllow → classifier.
+  // User deny wins over everything (even classifier ESCALATE);
+  // hard deny wins over user allow (we never let users disable
+  // built-in rm-rf-/ rules); user allow wins over hard allow.
+  const userDeny = matchUserRules(command, options.userDenyRules ?? []);
+  if (userDeny) {
+    return {
+      verdict: ShellGuardVerdict.Deny,
+      source: ShellGuardSource.UserHardDeny,
+      reason: `matched user deny rule (${userDeny.syntax}): ${userDeny.raw}`,
+      mode,
+    };
+  }
+
   const hard = evaluateHardRules(command);
   if (hard.kind === 'deny') {
     return {
@@ -116,6 +134,17 @@ export async function evaluateShellGuard(
       mode,
     };
   }
+
+  const userAllow = matchUserRules(command, options.userAllowRules ?? []);
+  if (userAllow) {
+    return {
+      verdict: ShellGuardVerdict.Allow,
+      source: ShellGuardSource.UserHardAllow,
+      reason: `matched user allow rule (${userAllow.syntax}): ${userAllow.raw}`,
+      mode,
+    };
+  }
+
   if (hard.kind === 'allow') {
     return {
       verdict: ShellGuardVerdict.Allow,
@@ -150,7 +179,10 @@ export async function evaluateShellGuard(
     };
   }
 
-  if (outcome.verdict.verdict === ShellGuardClassifierResult.Allow) {
+  const classifierVerdict = outcome.verdict.verdict;
+  const alternative = outcome.verdict.suggestedAlternative;
+
+  if (classifierVerdict === ShellGuardClassifierResult.Allow) {
     if (options.escalation) {
       options.escalation.reset(buildCommandTemplate(command));
     }
@@ -159,6 +191,22 @@ export async function evaluateShellGuard(
       source: ShellGuardSource.Classifier,
       reason: outcome.verdict.reason,
       classifierCached: outcome.cached,
+      mode,
+    };
+  }
+
+  if (classifierVerdict === ShellGuardClassifierResult.Escalate) {
+    // Classifier itself asked for human approval — bypass the BLOCK
+    // counter (this isn't a refusal we want the agent to retry).
+    if (options.escalation) {
+      options.escalation.reset(buildCommandTemplate(command));
+    }
+    return {
+      verdict: ShellGuardVerdict.Escalate,
+      source: ShellGuardSource.ClassifierEscalate,
+      reason: outcome.verdict.reason,
+      classifierCached: outcome.cached,
+      ...(alternative ? { suggestedAlternative: alternative } : {}),
       mode,
     };
   }
@@ -177,6 +225,7 @@ export async function evaluateShellGuard(
         reason: `agent has been blocked ${count} times for the same command pattern; asking the user`,
         classifierCached: outcome.cached,
         escalationCount: count,
+        ...(alternative ? { suggestedAlternative: alternative } : {}),
         mode,
       };
     }
@@ -186,6 +235,7 @@ export async function evaluateShellGuard(
       reason: outcome.verdict.reason,
       classifierCached: outcome.cached,
       escalationCount: count,
+      ...(alternative ? { suggestedAlternative: alternative } : {}),
       mode,
     };
   }
@@ -195,6 +245,7 @@ export async function evaluateShellGuard(
     source: ShellGuardSource.Classifier,
     reason: outcome.verdict.reason,
     classifierCached: outcome.cached,
+    ...(alternative ? { suggestedAlternative: alternative } : {}),
     mode,
   };
 }
@@ -205,8 +256,14 @@ export async function evaluateShellGuard(
  * transcripts.
  */
 export function formatDenyMessageForAgent(evaluation: ShellGuardEvaluation): string {
-  const tag = evaluation.source === ShellGuardSource.HardDeny
-    ? 'shell-guard:hard-deny'
-    : 'shell-guard:classifier';
-  return `[${tag}] BLOCKED: ${evaluation.reason}. Try a different approach. If you believe this is wrong, ask the user to confirm.`;
+  const tag =
+    evaluation.source === ShellGuardSource.HardDeny
+      ? 'shell-guard:hard-deny'
+      : evaluation.source === ShellGuardSource.UserHardDeny
+        ? 'shell-guard:user-deny'
+        : 'shell-guard:classifier';
+  const altLine = evaluation.suggestedAlternative
+    ? ` Suggested alternative: ${evaluation.suggestedAlternative}.`
+    : '';
+  return `[${tag}] BLOCKED: ${evaluation.reason}.${altLine} Take a different approach to accomplish the user's goal — do NOT retry this exact command. If you believe the block is wrong, ask the user to confirm before retrying.`;
 }

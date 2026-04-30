@@ -213,4 +213,88 @@ describe('formatDenyMessageForAgent', () => {
     });
     expect(msg).toContain('shell-guard:classifier');
   });
+
+  test('includes suggestedAlternative when present', () => {
+    const msg = formatDenyMessageForAgent({
+      verdict: ShellGuardVerdict.Deny,
+      source: ShellGuardSource.Classifier,
+      reason: 'curl pipe to shell',
+      suggestedAlternative: 'download the script first and review it before executing',
+      mode: ShellGuardMode.Auto,
+    });
+    expect(msg).toContain('Suggested alternative: download the script');
+    expect(msg).toContain('different approach');
+  });
+
+  test('formats user-deny tag', () => {
+    const msg = formatDenyMessageForAgent({
+      verdict: ShellGuardVerdict.Deny,
+      source: ShellGuardSource.UserHardDeny,
+      reason: 'matched user deny rule (regex): /^pnpm/',
+      mode: ShellGuardMode.Auto,
+    });
+    expect(msg).toContain('shell-guard:user-deny');
+  });
+});
+
+describe('classifier ESCALATE verdict', () => {
+  const escalateTransport: ClassifierTransport = async () =>
+    '{"verdict":"ESCALATE","reason":"prod cluster op","suggestedAlternative":"run on staging first"}';
+
+  test('returns Escalate without bumping the deny counter', async () => {
+    const escalation = new EscalationCounter();
+    const r = await evaluateShellGuard({
+      ...baseOpts,
+      mode: ShellGuardMode.Auto,
+      command: 'kubectl apply -f deploy.yaml --context prod',
+      transport: escalateTransport,
+      cache: new InMemoryClassifierCache(),
+      escalation,
+    });
+    expect(r.verdict).toBe(ShellGuardVerdict.Escalate);
+    expect(r.source).toBe(ShellGuardSource.ClassifierEscalate);
+    expect(r.suggestedAlternative).toBe('run on staging first');
+  });
+});
+
+describe('user rules', () => {
+  test('user deny wins over classifier ALLOW', async () => {
+    const r = await evaluateShellGuard({
+      ...baseOpts,
+      mode: ShellGuardMode.Auto,
+      command: 'pnpm install some-package',
+      transport: allowTransport,
+      cache: new InMemoryClassifierCache(),
+      userDenyRules: [
+        { raw: 'pnpm', syntax: 'prefix', pattern: /^pnpm(?:\s|$)/ },
+      ],
+    });
+    expect(r.verdict).toBe(ShellGuardVerdict.Deny);
+    expect(r.source).toBe(ShellGuardSource.UserHardDeny);
+  });
+
+  test('user allow wins over classifier BLOCK but not over hard deny', async () => {
+    const allowRule = [{ raw: 'rm', syntax: 'prefix' as const, pattern: /^rm(?:\s|$)/ }];
+    const blocked = await evaluateShellGuard({
+      ...baseOpts,
+      mode: ShellGuardMode.Auto,
+      command: 'rm -rf /',
+      transport: allowTransport,
+      cache: new InMemoryClassifierCache(),
+      userAllowRules: allowRule,
+    });
+    expect(blocked.verdict).toBe(ShellGuardVerdict.Deny);
+    expect(blocked.source).toBe(ShellGuardSource.HardDeny);
+
+    const allowed = await evaluateShellGuard({
+      ...baseOpts,
+      mode: ShellGuardMode.Auto,
+      command: 'rm -- some-file.tmp',
+      transport: blockTransport,
+      cache: new InMemoryClassifierCache(),
+      userAllowRules: allowRule,
+    });
+    expect(allowed.verdict).toBe(ShellGuardVerdict.Allow);
+    expect(allowed.source).toBe(ShellGuardSource.UserHardAllow);
+  });
 });
