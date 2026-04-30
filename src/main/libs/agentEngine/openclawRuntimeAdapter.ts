@@ -39,6 +39,7 @@ import {
 } from '../shellGuard';
 import {
   buildClassifierCacheKey,
+  isCacheableCommand,
 } from '../shellGuard/classifier';
 import {
   normalizeShellGuardMode,
@@ -175,8 +176,16 @@ type PendingApprovalEntry = {
   sessionId: string;
   /** When true, use 'allow-always' decision so OpenClaw adds the command to its allowlist. */
   allowAlways?: boolean;
-  /** Original command + cwd for ShellGuard escalations, used to cache user approvals. */
-  shellGuardEscalation?: { command: string; cwd: string };
+  /**
+   * When true, this approval came from a real user-facing prompt (escalate
+   * path) and the OpenClaw turn is parked waiting for the result; we must
+   * call continueSession after resolving so the model sees the outcome.
+   * Set explicitly only for the escalate branch — auto-allow / auto-deny
+   * paths must NOT trigger an extra synthetic turn.
+   */
+  needsContinuation?: boolean;
+  /** Original command + cwd + intent for ShellGuard escalations, used to cache user approvals. */
+  shellGuardEscalation?: { command: string; cwd: string; userIntent: string };
 };
 
 type ChannelHistorySyncEntry = {
@@ -1184,7 +1193,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
   async continueSession(sessionId: string, prompt: string, options: CoworkContinueOptions = {}): Promise<void> {
     await this.runTurn(sessionId, prompt, {
-      skipInitialUserMessage: false,
+      skipInitialUserMessage: options.skipInitialUserMessage,
       systemPrompt: options.systemPrompt,
       skillIds: options.skillIds,
       imageAttachments: options.imageAttachments,
@@ -1262,14 +1271,21 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
     // If the user approved a ShellGuard escalation, remember the verdict in
     // the classifier cache so the same command template doesn't re-prompt.
+    // Skip caching for non-cacheable wrappers (bash -c "...", python -c "...",
+    // base64-decoded payloads, etc.) where the same template can hide very
+    // different payloads.
     if (decision === 'allow-once' && pending.shellGuardEscalation) {
-      const { command, cwd } = pending.shellGuardEscalation;
-      const cacheKey = buildClassifierCacheKey(command, cwd);
-      getSharedClassifierCache().set(cacheKey, {
-        verdict: ShellGuardClassifierResult.Allow,
-        reason: 'user manually approved this command',
-      });
-      console.log(`[ShellGuard] cached user approval for command template (cwd=${cwd})`);
+      const { command, cwd, userIntent } = pending.shellGuardEscalation;
+      if (isCacheableCommand(command)) {
+        const cacheKey = buildClassifierCacheKey(command, cwd, userIntent);
+        getSharedClassifierCache().set(cacheKey, {
+          verdict: ShellGuardClassifierResult.Allow,
+          reason: 'user manually approved this command',
+        });
+        console.log(`[ShellGuard] cached user approval for command template (cwd=${cwd})`);
+      } else {
+        console.log(`[ShellGuard] skipped caching user approval for non-cacheable wrapper command (cwd=${cwd})`);
+      }
     }
 
     const client = this.gatewayClient;
@@ -1279,9 +1295,10 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     }
 
     const sessionId = pending.sessionId;
-    // Only schedule continuation for user-initiated approvals (desktop modal),
-    // not for auto-approved commands (allowAlways).
-    const needsContinuation = !pending.allowAlways;
+    // Continue the session ONLY for prompts the user actually saw (escalate
+    // path explicitly opted in via needsContinuation). Auto-allow / auto-deny
+    // paths must not synthesize a "user approved" turn.
+    const needsContinuation = pending.needsContinuation === true;
 
     void client.request('exec.approval.resolve', {
       id: requestId,
@@ -1295,7 +1312,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       const tryContinue = (retries: number) => {
         if (!this.store.getSession(sessionId)) return; // session deleted
         if (!this.isSessionActive(sessionId)) {
-          void this.continueSession(sessionId, prompt).catch((error) => {
+          void this.continueSession(sessionId, prompt, { skipInitialUserMessage: true }).catch((error) => {
             console.warn('[OpenClawRuntime] failed to continue session after approval:', error);
           });
           return;
@@ -3354,7 +3371,8 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     this.pendingApprovals.set(requestId, {
       requestId,
       sessionId,
-      shellGuardEscalation: { command, cwd },
+      needsContinuation: true,
+      shellGuardEscalation: { command, cwd, userIntent: ctx.userIntent },
     });
     emitGuardSystemMessage('shellGuardEscalated');
 
@@ -4290,6 +4308,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
     // Clean up pending approvals, bridged state, confirmation mode
     this.clearPendingApprovalsBySession(sessionId);
+    this.shellGuardEscalations.delete(sessionId);
     this.bridgedSessions.delete(sessionId);
     this.confirmationModeBySession.delete(sessionId);
     this.manuallyStoppedSessions.delete(sessionId);
