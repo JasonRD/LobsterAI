@@ -12,6 +12,13 @@ describe('HARD_DENY rules', () => {
   const deny: Array<[string, string]> = [
     ['rm -rf /', 'rm-rf-root'],
     ['rm -fR /', 'rm-rf-root'],
+    ['rm -rf /*', 'rm-rf-root'],
+    ['rm -rf /.', 'rm-rf-root'],
+    ['rm -rf /.*', 'rm-rf-root'],
+    ['rm -rf /./*', 'rm-rf-root'],
+    ['rm -rf ./*', 'rm-rf-root'],
+    ['rm -rf "/"', 'rm-rf-root'],
+    ['rm -rf /;ls', 'rm-rf-root'],
     ['rm -rf $HOME', 'rm-rf-home'],
     ['rm -rf ~', 'rm-rf-home'],
     ['rm -rf /Users/jianchao', 'rm-rf-home'],

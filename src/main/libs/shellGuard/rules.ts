@@ -25,7 +25,18 @@ const RM_RECURSIVE_FORCE = /\brm\s+(?:-[a-zA-Z]*[rRf][a-zA-Z]*\s+)+/;
 export const HARD_DENY_RULES: readonly ShellRulePattern[] = [
   {
     id: 'rm-rf-root',
-    pattern: new RegExp(`${RM_RECURSIVE_FORCE.source}(?:/|"\\s*/\\s*"|'\\s*/\\s*')(?:\\s|$)`),
+    // Matches recursive force-rm targeting filesystem root in any of the
+    // common dangerous spellings:  / , /* , /. , /.* , /./* , ./* , "/"
+    // Trailing context allows shell separators (; & |) too so e.g.
+    // `rm -rf /;ls` doesn't sneak past.
+    pattern: new RegExp(
+      `${RM_RECURSIVE_FORCE.source}`
+      + `(?:`
+      + `(?:"\\s*/\\s*"|'\\s*/\\s*')` // "/" or '/'
+      + `|\\.?/(?:\\.\\*?|\\*)?` // /, /*, /., /.*, ./*
+      + `)`
+      + `(?:\\s|$|/|[;&|])`,
+    ),
     reason: 'recursive delete targeting filesystem root',
   },
   {
