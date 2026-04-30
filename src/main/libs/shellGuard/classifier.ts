@@ -164,6 +164,29 @@ const NUMBER_TOKEN = /\b\d+\b/g;
 const ABSOLUTE_PATH = /(?<![\w\/])(?:\.{0,2}\/)?[\w.@+-]+(?:\/[\w.@+-]+)+/g;
 
 /**
+ * Wrappers whose payload is a quoted/encoded blob. Two invocations like
+ * `bash -c "echo ok"` and `bash -c "rm -rf /"` collapse to the same
+ * template under QUOTED_STRING redaction, so we MUST NOT cache them —
+ * a previous safe wrapper could otherwise auto-allow a later dangerous
+ * one. Same goes for base64/eval/exec payloads.
+ */
+const NON_CACHEABLE_PATTERNS: readonly RegExp[] = [
+  /\b(?:bash|sh|zsh|fish|ksh|dash|pwsh|powershell)\s+-[a-zA-Z]*c\b/,
+  /\b(?:python|python3|ruby|perl|node|deno)\s+-[a-zA-Z]*[ec]\b/,
+  /\b(?:python|python3)\s+-[a-zA-Z]*m\b/,
+  /\b(?:eval|exec|source)\b/,
+  /\bbase64\b\s*-[dD]/,
+  /-EncodedCommand\b/i,
+  /\$\(.*\)/,
+  /`[^`]+`/,
+];
+
+export function isCacheableCommand(command: string): boolean {
+  const norm = normalizeCommand(command);
+  return !NON_CACHEABLE_PATTERNS.some((re) => re.test(norm));
+}
+
+/**
  * Stable cache key that ignores volatile arguments (numbers, quoted
  * strings, absolute paths) so e.g. `git log -n 50` and `git log -n 100`
  * collapse to the same template.
@@ -175,9 +198,10 @@ export function buildCommandTemplate(command: string): string {
     .replace(NUMBER_TOKEN, '<NUM>');
 }
 
-export function buildClassifierCacheKey(command: string, cwd: string): string {
+export function buildClassifierCacheKey(command: string, cwd: string, userIntent = ''): string {
   const template = buildCommandTemplate(command);
-  return createHash('sha256').update(`${cwd}\u0000${template}`).digest('hex');
+  const intent = userIntent.trim().slice(0, 500);
+  return createHash('sha256').update(`${cwd}\u0000${intent}\u0000${template}`).digest('hex');
 }
 
 export function buildClassifierUserPrompt(ctx: ClassifierContext): string {
@@ -331,7 +355,8 @@ export async function classifyCommand(
   options: ClassifierOptions,
 ): Promise<ClassifierOutcome> {
   const cache = options.cache;
-  const cacheKey = cache ? buildClassifierCacheKey(ctx.command, ctx.cwd) : null;
+  const cacheable = isCacheableCommand(ctx.command);
+  const cacheKey = cache && cacheable ? buildClassifierCacheKey(ctx.command, ctx.cwd, ctx.userIntent) : null;
 
   if (cache && cacheKey) {
     const cached = cache.get(cacheKey);

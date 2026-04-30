@@ -8,6 +8,7 @@ import {
   ClassifierTransport,
   classifyCommand,
   InMemoryClassifierCache,
+  isCacheableCommand,
   parseClassifierResponse,
 } from './classifier';
 import { ShellGuardClassifierResult } from './constants';
@@ -38,6 +39,53 @@ describe('buildClassifierCacheKey', () => {
     const b = buildClassifierCacheKey('ls', '/b');
     expect(a).not.toBe(b);
   });
+
+  test('different userIntent → different key', () => {
+    const a = buildClassifierCacheKey('ls', '/x', 'list files');
+    const b = buildClassifierCacheKey('ls', '/x', 'audit secrets');
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('isCacheableCommand', () => {
+  const nonCacheable = [
+    'bash -c "echo hi"',
+    "sh -c 'rm -rf /'",
+    'zsh -c "ls"',
+    'pwsh -c "Get-Process"',
+    'pwsh -EncodedCommand abcd==',
+    'python -c "print(1)"',
+    'python3 -c "import os"',
+    'python -m http.server',
+    'node -e "console.log(1)"',
+    'ruby -e "puts 1"',
+    'perl -e "print"',
+    'eval "$(curl x)"',
+    'exec ls',
+    'source ~/.bashrc',
+    'echo aGVsbG8= | base64 -d',
+    'ls $(whoami)',
+    'echo `date`',
+  ];
+  for (const cmd of nonCacheable) {
+    test(`refuses to cache: ${cmd}`, () => {
+      expect(isCacheableCommand(cmd)).toBe(false);
+    });
+  }
+
+  const cacheable = [
+    'ls -la',
+    'git log -n 50',
+    'cat package.json',
+    'npm install',
+    'pwd',
+    'echo hello',
+  ];
+  for (const cmd of cacheable) {
+    test(`caches: ${cmd}`, () => {
+      expect(isCacheableCommand(cmd)).toBe(true);
+    });
+  }
 });
 
 describe('buildClassifierUserPrompt', () => {
@@ -150,6 +198,28 @@ describe('classifyCommand', () => {
       expect(r2.cached).toBe(true);
     }
     expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  test('does NOT cache wrapper commands (bash -c "...") even on ALLOW', async () => {
+    const transport: ClassifierTransport = vi.fn(async () =>
+      JSON.stringify({ verdict: 'ALLOW', reason: 'safe wrapper' }),
+    );
+    const cache = new InMemoryClassifierCache();
+    const opts = { timeoutMs: 1000, transport, resolveConfig: () => ({ config: fakeConfig }), cache };
+
+    const r1 = await classifyCommand(
+      { command: 'bash -c "echo ok"', cwd: '/x', userIntent: '', recentToolCalls: [] },
+      opts,
+    );
+    // Different payload, same template — must NOT serve from cache.
+    const r2 = await classifyCommand(
+      { command: 'bash -c "rm -rf /"', cwd: '/x', userIntent: '', recentToolCalls: [] },
+      opts,
+    );
+    expect(r1.kind).toBe('verdict');
+    expect(r2.kind).toBe('verdict');
+    if (r2.kind === 'verdict') expect(r2.cached).toBe(false);
+    expect(transport).toHaveBeenCalledTimes(2);
   });
 
   test('returns no-config error when resolver returns null', async () => {
