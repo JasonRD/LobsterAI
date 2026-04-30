@@ -45,18 +45,21 @@ const collectTextFromUnknown = (value: unknown): string[] => {
 export type CoworkLlmApiConfig =
   | {
     protocol: typeof CoworkModelProtocol.Anthropic;
+    providerName?: string;
     apiKey: string;
     baseURL: string;
     model: string;
   }
   | {
     protocol: typeof CoworkModelProtocol.GeminiNative;
+    providerName?: string;
     apiKey: string;
     baseURL: string;
     model: string;
   }
   | {
     protocol: typeof CoworkModelProtocol.OpenAICompat;
+    providerName?: string;
     apiKey: string;
     baseURL: string;
     model: string;

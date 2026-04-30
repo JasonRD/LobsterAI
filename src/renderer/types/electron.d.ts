@@ -72,6 +72,7 @@ interface CoworkConfig {
   embeddingRemoteBaseUrl: string;
   embeddingRemoteApiKey: string;
   shellGuardMode: 'ask-always' | 'auto' | 'skip-all';
+  shellGuardClassifierProvider: string;
   shellGuardClassifierModel: string;
   shellGuardClassifierTimeoutMs: number;
   shellGuardEscalateThreshold: number;
@@ -99,6 +100,7 @@ type CoworkConfigUpdate = Partial<Pick<
   | 'embeddingRemoteBaseUrl'
   | 'embeddingRemoteApiKey'
   | 'shellGuardMode'
+  | 'shellGuardClassifierProvider'
   | 'shellGuardClassifierModel'
   | 'shellGuardClassifierTimeoutMs'
   | 'shellGuardEscalateThreshold'

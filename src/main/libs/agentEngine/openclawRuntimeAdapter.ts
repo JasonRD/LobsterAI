@@ -176,14 +176,6 @@ type PendingApprovalEntry = {
   sessionId: string;
   /** When true, use 'allow-always' decision so OpenClaw adds the command to its allowlist. */
   allowAlways?: boolean;
-  /**
-   * When true, this approval came from a real user-facing prompt (escalate
-   * path) and the OpenClaw turn is parked waiting for the result; we must
-   * call continueSession after resolving so the model sees the outcome.
-   * Set explicitly only for the escalate branch — auto-allow / auto-deny
-   * paths must NOT trigger an extra synthetic turn.
-   */
-  needsContinuation?: boolean;
   /** Original command + cwd + intent for ShellGuard escalations, used to cache user approvals. */
   shellGuardEscalation?: { command: string; cwd: string; userIntent: string };
 };
@@ -1295,34 +1287,12 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     }
 
     const sessionId = pending.sessionId;
-    // Continue the session ONLY for prompts the user actually saw (escalate
-    // path explicitly opted in via needsContinuation). Auto-allow / auto-deny
-    // paths must not synthesize a "user approved" turn.
-    const needsContinuation = pending.needsContinuation === true;
-
+    // The gateway resumes the parked run after approval resolution. Starting
+    // a hidden continuation here creates an extra user turn in gateway history,
+    // which fragments the visible assistant response.
     void client.request('exec.approval.resolve', {
       id: requestId,
       decision,
-    }).then(() => {
-      if (!needsContinuation) return;
-      // Continue the session so the model can see the command result.
-      const prompt = decision !== 'deny'
-        ? t('execApprovalApproved')
-        : t('execApprovalDenied');
-      const tryContinue = (retries: number) => {
-        if (!this.store.getSession(sessionId)) return; // session deleted
-        if (!this.isSessionActive(sessionId)) {
-          void this.continueSession(sessionId, prompt, { skipInitialUserMessage: true }).catch((error) => {
-            console.warn('[OpenClawRuntime] failed to continue session after approval:', error);
-          });
-          return;
-        }
-        // Session still active (user approved before run ended). Retry after delay.
-        if (retries > 0) {
-          setTimeout(() => tryContinue(retries - 1), 1000);
-        }
-      };
-      tryContinue(10);
     }).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       this.emit('error', sessionId, `Failed to resolve OpenClaw approval: ${message}`);
@@ -3290,6 +3260,8 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     const mode = normalizeShellGuardMode(config.shellGuardMode);
     const cwd = typeof request.cwd === 'string' ? request.cwd : config.workingDirectory ?? '';
     const ctx = this.collectShellGuardContext(sessionId);
+    const classifierProvider = config.shellGuardClassifierProvider || undefined;
+    const classifierModel = classifierProvider ? config.shellGuardClassifierModel || undefined : undefined;
 
     let evaluation: ShellGuardEvaluation;
     try {
@@ -3299,12 +3271,11 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         cwd,
         userIntent: ctx.userIntent,
         recentToolCalls: ctx.recentToolCalls,
-        classifierModel: config.shellGuardClassifierModel || undefined,
         classifierTimeoutMs: config.shellGuardClassifierTimeoutMs,
         escalateThreshold: config.shellGuardEscalateThreshold,
         userDenyRules: parseUserRules(config.shellGuardUserDenyRules),
         userAllowRules: parseUserRules(config.shellGuardUserAllowRules),
-        resolveConfig: () => resolveCoworkLlmApiConfig(),
+        resolveConfig: () => resolveCoworkLlmApiConfig(classifierProvider, classifierModel),
         escalation: this.getShellGuardEscalation(sessionId),
       });
     } catch (error) {
@@ -3371,7 +3342,6 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     this.pendingApprovals.set(requestId, {
       requestId,
       sessionId,
-      needsContinuation: true,
       shellGuardEscalation: { command, cwd, userIntent: ctx.userIntent },
     });
     emitGuardSystemMessage('shellGuardEscalated');

@@ -31,6 +31,7 @@ test('setConfig preserves loaded OpenClaw session policy', () => {
     embeddingRemoteBaseUrl: '',
     embeddingRemoteApiKey: '',
     shellGuardMode: 'auto',
+    shellGuardClassifierProvider: '',
     shellGuardClassifierModel: '',
     shellGuardClassifierTimeoutMs: 8000,
     shellGuardEscalateThreshold: 3,

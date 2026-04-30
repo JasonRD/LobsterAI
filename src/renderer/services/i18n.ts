@@ -1203,7 +1203,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     shellGuardModeSkipAllDesc: '跳过所有审查，仅在你完全信任 AI 且工作目录隔离时启用。',
     shellGuardClassifierModel: '分类器模型',
     shellGuardClassifierModelPlaceholder: '留空使用主模型',
-    shellGuardClassifierModelHint: '可选：用一个轻量模型做安全审查以降低延迟和成本。',
+    shellGuardClassifierModelHint: '可选：按供应商选择一个轻量模型做安全审查，以降低延迟和成本。',
     shellGuardClassifierModelDefault: '使用主模型（默认）',
     shellGuardClassifierModelCustom: '自定义…',
     shellGuardClassifierModelCustomPlaceholder: '输入模型 ID',
@@ -2818,7 +2818,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     shellGuardClassifierModel: 'Classifier Model',
     shellGuardClassifierModelPlaceholder: 'Leave blank to use main model',
     shellGuardClassifierModelHint:
-      'Optional: pick a lightweight model for safety review to reduce latency and cost.',
+      'Optional: pick a provider-specific lightweight model for safety review to reduce latency and cost.',
     shellGuardClassifierModelDefault: 'Use main model (default)',
     shellGuardClassifierModelCustom: 'Custom…',
     shellGuardClassifierModelCustomPlaceholder: 'Enter model ID',

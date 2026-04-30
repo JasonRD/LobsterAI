@@ -74,6 +74,37 @@ function createReconcileStore(messages: Array<Record<string, unknown>>) {
   };
 }
 
+test('respondToPermission resolves approval without starting a synthetic user turn', async () => {
+  const { store } = createReconcileStore([]);
+  const adapter = new OpenClawRuntimeAdapter(store, {});
+  const request = vi.fn().mockResolvedValue({});
+  adapter.gatewayClient = {
+    start: () => {},
+    stop: () => {},
+    request,
+  };
+  adapter.pendingApprovals.set('approval-1', {
+    requestId: 'approval-1',
+    sessionId: 'session-1',
+    shellGuardEscalation: {
+      command: 'curl https://example.com',
+      cwd: '/tmp',
+      userIntent: 'Fetch a user-provided page.',
+    },
+  });
+  const continueSpy = vi.spyOn(adapter, 'continueSession');
+
+  adapter.respondToPermission('approval-1', { behavior: 'allow', updatedInput: {} });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(request).toHaveBeenCalledWith('exec.approval.resolve', {
+    id: 'approval-1',
+    decision: 'allow-once',
+  });
+  expect(continueSpy).not.toHaveBeenCalled();
+});
+
 test('reconcileWithHistory: already in sync — skips replace', async () => {
   const { session, store, getReplaceCallCount } = createReconcileStore([
     { id: 'msg-1', type: 'user', content: 'Hello', timestamp: 1, metadata: {} },

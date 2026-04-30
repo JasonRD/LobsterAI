@@ -54,8 +54,8 @@ keep latency and token cost low for the most common commands.
 ## LLM classifier
 
 `src/main/libs/shellGuard/classifier.ts` calls the cowork model
-(or a user-selected lightweight override) with a tight system prompt
-that returns `{ verdict: "ALLOW" | "BLOCK", reason: "..." }`.
+(or a user-selected provider/model override) with a tight system prompt
+that returns `{ verdict: "ALLOW" | "ESCALATE" | "BLOCK", reason: "..." }`.
 
 The classifier sees:
 - the proposed `command`
@@ -63,10 +63,11 @@ The classifier sees:
 - the user's most recent message (`userIntent`)
 - up to 3 recent tool calls
 
-Verdicts are cached for 24h keyed by `sha256(commandTemplate + cwd)`,
+Verdicts are cached for 24h keyed by `sha256(commandTemplate + cwd + userIntent)`,
 where `commandTemplate` replaces numbers, quoted strings, and paths
 with placeholders so structurally identical commands share a cache
-entry.
+entry. Commands that wrap quoted/encoded executable payloads are not
+cached, because the template can hide materially different behaviour.
 
 Failure modes (timeout, network error, unparseable response) escalate
 to a manual prompt rather than silently allowing.
@@ -94,7 +95,8 @@ Stored in `cowork_config`:
 | Key | Type | Default |
 |---|---|---|
 | `shellGuardMode` | `'auto' \| 'ask-always' \| 'skip-all'` | `'auto'` |
-| `shellGuardClassifierModel` | string (model name) | `''` (use main model) |
+| `shellGuardClassifierProvider` | string (provider key) | `''` (use main provider) |
+| `shellGuardClassifierModel` | string (provider-scoped model name) | `''` (use main model) |
 | `shellGuardClassifierTimeoutMs` | number, 1000–60000 | `8000` |
 | `shellGuardEscalateThreshold` | number, 1–20 | `3` |
 

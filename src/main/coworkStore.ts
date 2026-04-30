@@ -11,6 +11,7 @@ import {
   clampEscalateThreshold,
   normalizeShellGuardMode,
   SHELL_GUARD_DEFAULT_CLASSIFIER_MODEL,
+  SHELL_GUARD_DEFAULT_CLASSIFIER_PROVIDER,
   ShellGuardMode,
 } from './libs/shellGuard/constants';
 
@@ -464,6 +465,7 @@ export interface CoworkConfig {
   embeddingRemoteBaseUrl: string;
   embeddingRemoteApiKey: string;
   shellGuardMode: ShellGuardMode;
+  shellGuardClassifierProvider: string;
   shellGuardClassifierModel: string;
   shellGuardClassifierTimeoutMs: number;
   shellGuardEscalateThreshold: number;
@@ -488,6 +490,7 @@ CoworkConfig,
   | 'embeddingLocalModelPath'
   | 'embeddingVectorWeight'
   | 'shellGuardMode'
+  | 'shellGuardClassifierProvider'
   | 'shellGuardClassifierModel'
   | 'shellGuardClassifierTimeoutMs'
   | 'shellGuardEscalateThreshold'
@@ -1080,6 +1083,7 @@ export class CoworkStore {
       'embeddingRemoteBaseUrl',
       'embeddingRemoteApiKey',
       'shellGuardMode',
+      'shellGuardClassifierProvider',
       'shellGuardClassifierModel',
       'shellGuardClassifierTimeoutMs',
       'shellGuardEscalateThreshold',
@@ -1119,6 +1123,7 @@ export class CoworkStore {
       embeddingRemoteBaseUrl: cfg.get('embeddingRemoteBaseUrl') || DEFAULT_EMBEDDING_REMOTE_BASE_URL,
       embeddingRemoteApiKey: cfg.get('embeddingRemoteApiKey') || DEFAULT_EMBEDDING_REMOTE_API_KEY,
       shellGuardMode: normalizeShellGuardMode(cfg.get('shellGuardMode')),
+      shellGuardClassifierProvider: cfg.get('shellGuardClassifierProvider') || SHELL_GUARD_DEFAULT_CLASSIFIER_PROVIDER,
       shellGuardClassifierModel: cfg.get('shellGuardClassifierModel') || SHELL_GUARD_DEFAULT_CLASSIFIER_MODEL,
       shellGuardClassifierTimeoutMs: clampClassifierTimeoutMs(Number(cfg.get('shellGuardClassifierTimeoutMs'))),
       shellGuardEscalateThreshold: clampEscalateThreshold(Number(cfg.get('shellGuardEscalateThreshold'))),
@@ -1180,6 +1185,9 @@ export class CoworkStore {
     }
     if (config.shellGuardMode !== undefined) {
       this.upsertConfig('shellGuardMode', normalizeShellGuardMode(config.shellGuardMode), now);
+    }
+    if (config.shellGuardClassifierProvider !== undefined) {
+      this.upsertConfig('shellGuardClassifierProvider', String(config.shellGuardClassifierProvider), now);
     }
     if (config.shellGuardClassifierModel !== undefined) {
       this.upsertConfig('shellGuardClassifierModel', String(config.shellGuardClassifierModel), now);

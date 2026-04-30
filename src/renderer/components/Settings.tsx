@@ -809,8 +809,11 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
   const [shellGuardMode, setShellGuardMode] = useState<'auto' | 'ask-always' | 'skip-all'>(
     (coworkConfig.shellGuardMode as 'auto' | 'ask-always' | 'skip-all') ?? 'auto',
   );
+  const [shellGuardClassifierProvider, setShellGuardClassifierProvider] = useState<string>(
+    coworkConfig.shellGuardClassifierProvider ?? '',
+  );
   const [shellGuardClassifierModel, setShellGuardClassifierModel] = useState<string>(
-    coworkConfig.shellGuardClassifierModel ?? '',
+    coworkConfig.shellGuardClassifierProvider ? (coworkConfig.shellGuardClassifierModel ?? '') : '',
   );
   const [shellGuardUserDenyRules, setShellGuardUserDenyRules] = useState<string>(
     coworkConfig.shellGuardUserDenyRules ?? '',
@@ -847,7 +850,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     setCoworkMemoryLlmJudgeEnabled(coworkConfig.memoryLlmJudgeEnabled ?? false);
     setSkipMissedJobs(coworkConfig.skipMissedJobs ?? true);
     setShellGuardMode((coworkConfig.shellGuardMode as 'auto' | 'ask-always' | 'skip-all') ?? 'auto');
-    setShellGuardClassifierModel(coworkConfig.shellGuardClassifierModel ?? '');
+    setShellGuardClassifierProvider(coworkConfig.shellGuardClassifierProvider ?? '');
+    setShellGuardClassifierModel(coworkConfig.shellGuardClassifierProvider ? (coworkConfig.shellGuardClassifierModel ?? '') : '');
     setShellGuardUserDenyRules(coworkConfig.shellGuardUserDenyRules ?? '');
     setShellGuardUserAllowRules(coworkConfig.shellGuardUserAllowRules ?? '');
     setEmbeddingEnabled(coworkConfig.embeddingEnabled ?? false);
@@ -865,6 +869,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     coworkConfig.openClawSessionPolicy?.keepAlive,
     coworkConfig.skipMissedJobs,
     coworkConfig.shellGuardMode,
+    coworkConfig.shellGuardClassifierProvider,
     coworkConfig.shellGuardClassifierModel,
     coworkConfig.shellGuardUserDenyRules,
     coworkConfig.shellGuardUserAllowRules,
@@ -1509,7 +1514,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     || coworkMemoryLlmJudgeEnabled !== coworkConfig.memoryLlmJudgeEnabled
     || skipMissedJobs !== (coworkConfig.skipMissedJobs ?? true)
     || shellGuardMode !== ((coworkConfig.shellGuardMode as 'auto' | 'ask-always' | 'skip-all') ?? 'auto')
-    || shellGuardClassifierModel !== (coworkConfig.shellGuardClassifierModel ?? '')
+    || shellGuardClassifierProvider !== (coworkConfig.shellGuardClassifierProvider ?? '')
+    || shellGuardClassifierModel !== (coworkConfig.shellGuardClassifierProvider ? (coworkConfig.shellGuardClassifierModel ?? '') : '')
     || shellGuardUserDenyRules !== (coworkConfig.shellGuardUserDenyRules ?? '')
     || shellGuardUserAllowRules !== (coworkConfig.shellGuardUserAllowRules ?? '')
     || openClawSessionKeepAlive !== (coworkConfig.openClawSessionPolicy?.keepAlive || OpenClawSessionKeepAliveValues.ThirtyDays)
@@ -1871,6 +1877,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
           memoryLlmJudgeEnabled: coworkMemoryLlmJudgeEnabled,
           skipMissedJobs,
           shellGuardMode,
+          shellGuardClassifierProvider,
           shellGuardClassifierModel,
           shellGuardUserDenyRules,
           shellGuardUserAllowRules,
@@ -2831,27 +2838,42 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
               </div>
               {shellGuardMode === 'auto' && (() => {
                 const CUSTOM_SENTINEL = '__custom__';
-                const knownModelIds = new Set<string>();
                 const providerGroups: { key: string; label: string; models: { id: string; name: string }[] }[] = [];
+                const makeTargetValue = (provider: string, model: string) => `${encodeURIComponent(provider)}:${encodeURIComponent(model)}`;
+                const parseTargetValue = (value: string): { provider: string; model: string } => {
+                  const separator = value.indexOf(':');
+                  if (separator < 0) return { provider: '', model: '' };
+                  return {
+                    provider: decodeURIComponent(value.slice(0, separator)),
+                    model: decodeURIComponent(value.slice(separator + 1)),
+                  };
+                };
                 providerKeys.forEach((pk) => {
                   const p = providers[pk];
                   if (!p?.enabled) return;
                   const models = (p.models ?? []).filter((m) => m && m.id);
                   if (models.length === 0) return;
-                  models.forEach((m) => knownModelIds.add(m.id));
                   providerGroups.push({
                     key: pk,
                     label: getProviderDisplayName(pk),
                     models: models.map((m) => ({ id: m.id, name: m.name || m.id })),
                   });
                 });
+                const knownTargetValues = new Set<string>();
+                providerGroups.forEach((g) => {
+                  g.models.forEach((m) => knownTargetValues.add(makeTargetValue(g.key, m.id)));
+                });
+                const provider = shellGuardClassifierProvider.trim();
                 const trimmed = shellGuardClassifierModel.trim();
-                const isUnknownCustom = trimmed.length > 0 && !knownModelIds.has(trimmed);
-                const selectValue = trimmed === ''
+                const customDraftActive = provider.length > 0 && shellGuardClassifierModel.length > 0 && trimmed === '';
+                const currentTargetValue = provider && trimmed ? makeTargetValue(provider, trimmed) : '';
+                const isUnknownCustom = provider.length > 0
+                  && (customDraftActive || (trimmed.length > 0 && !knownTargetValues.has(currentTargetValue)));
+                const selectValue = !provider || (trimmed === '' && !customDraftActive)
                   ? ''
                   : isUnknownCustom
-                    ? CUSTOM_SENTINEL
-                    : trimmed;
+                    ? makeTargetValue(provider, CUSTOM_SENTINEL)
+                    : currentTargetValue;
                 return (
                   <div>
                     <label className="block text-xs font-medium text-foreground mb-1">
@@ -2860,10 +2882,17 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
                     <select
                       value={selectValue}
                       onChange={(e) => {
-                        if (e.target.value === CUSTOM_SENTINEL) {
-                          if (!isUnknownCustom) setShellGuardClassifierModel(' ');
+                        if (!e.target.value) {
+                          setShellGuardClassifierProvider('');
+                          setShellGuardClassifierModel('');
+                          return;
+                        }
+                        const next = parseTargetValue(e.target.value);
+                        setShellGuardClassifierProvider(next.provider);
+                        if (next.model === CUSTOM_SENTINEL) {
+                          if (!isUnknownCustom || next.provider !== provider) setShellGuardClassifierModel(' ');
                         } else {
-                          setShellGuardClassifierModel(e.target.value);
+                          setShellGuardClassifierModel(next.model);
                         }
                       }}
                       className="w-full px-3 py-2 text-sm rounded border border-border bg-background text-foreground focus:outline-none focus:border-primary"
@@ -2872,15 +2901,17 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
                       {providerGroups.map((g) => (
                         <optgroup key={g.key} label={g.label}>
                           {g.models.map((m) => (
-                            <option key={`${g.key}:${m.id}`} value={m.id}>
+                            <option key={`${g.key}:${m.id}`} value={makeTargetValue(g.key, m.id)}>
                               {m.name}{m.name !== m.id ? ` (${m.id})` : ''}
                             </option>
                           ))}
+                          <option value={makeTargetValue(g.key, CUSTOM_SENTINEL)}>
+                            {i18nService.t('shellGuardClassifierModelCustom')}
+                          </option>
                         </optgroup>
                       ))}
-                      <option value={CUSTOM_SENTINEL}>{i18nService.t('shellGuardClassifierModelCustom')}</option>
                     </select>
-                    {selectValue === CUSTOM_SENTINEL && (
+                    {isUnknownCustom && (
                       <input
                         type="text"
                         value={trimmed === '' ? '' : shellGuardClassifierModel}

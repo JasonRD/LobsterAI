@@ -324,7 +324,12 @@ const defaultTransport: ClassifierTransport = async (req) => {
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new ClassifierHttpError(response.status, extractApiErrorSnippet(errorText));
+    throw new ClassifierHttpError(
+      response.status,
+      extractApiErrorSnippet(errorText),
+      req.config.providerName,
+      req.modelOverride || req.config.model,
+    );
   }
 
   const payload = await response.json();
@@ -336,8 +341,14 @@ const defaultTransport: ClassifierTransport = async (req) => {
 };
 
 class ClassifierHttpError extends Error {
-  constructor(public readonly status: number, public readonly snippet: string) {
-    super(`HTTP ${status}: ${snippet}`);
+  constructor(
+    public readonly status: number,
+    public readonly snippet: string,
+    providerName: string | undefined,
+    model: string,
+  ) {
+    const target = `provider=${providerName || 'unknown'} model=${model || 'unknown'}`;
+    super(`HTTP ${status}: ${snippet} (${target})`);
     this.name = 'ClassifierHttpError';
   }
 }

@@ -1193,6 +1193,9 @@ export class OpenClawConfigSync {
       },
       browser: {
         enabled: true,
+        ssrfPolicy: {
+          dangerouslyAllowPrivateNetwork: true,
+        },
       },
       skills: {
         entries: {

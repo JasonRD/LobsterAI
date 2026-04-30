@@ -3,7 +3,13 @@ import { app } from 'electron';
 import { chmodSync, existsSync, mkdirSync, readdirSync, realpathSync, statSync, writeFileSync } from 'fs';
 import { delimiter, dirname, join } from 'path';
 
-import { buildEnvForConfig, getCurrentApiConfig, resolveCurrentApiConfig, resolveRawApiConfig } from './claudeSettings';
+import {
+  buildEnvForConfig,
+  getCurrentApiConfig,
+  resolveAllEnabledProviderConfigs,
+  resolveCurrentApiConfig,
+  resolveRawApiConfig,
+} from './claudeSettings';
 import { coworkLog } from './coworkLogger';
 import {
   buildAnthropicMessagesUrl,
@@ -1424,8 +1430,61 @@ const COWORK_MODEL_PROBE_TIMEOUT_MS = 20000;
 
 type SessionTitleApiConfig = CoworkLlmApiConfig;
 
-export function resolveCoworkLlmApiConfig(): { config: CoworkLlmApiConfig | null; error?: string } {
-  return resolveSessionTitleApiConfig();
+export function resolveCoworkLlmApiConfig(
+  providerName?: string,
+  modelId?: string,
+): { config: CoworkLlmApiConfig | null; error?: string } {
+  const provider = providerName?.trim();
+  const model = modelId?.trim();
+  if (!provider && !model) {
+    return resolveSessionTitleApiConfig();
+  }
+  if (!provider || !model) {
+    return {
+      config: null,
+      error: 'Shell-guard classifier provider and model must both be configured.',
+    };
+  }
+
+  const providerConfig = resolveAllEnabledProviderConfigs()
+    .find((candidate) => candidate.providerName === provider);
+  if (!providerConfig) {
+    return {
+      config: null,
+      error: `Shell-guard classifier provider is not enabled: ${provider}`,
+    };
+  }
+
+  if (!providerConfig.models.some((candidate) => candidate.id === model)) {
+    return {
+      config: null,
+      error: `Shell-guard classifier model ${model} is not configured for provider ${provider}.`,
+    };
+  }
+
+  if (provider === 'gemini') {
+    return {
+      config: {
+        protocol: CoworkModelProtocol.GeminiNative,
+        providerName: provider,
+        apiKey: providerConfig.apiKey,
+        baseURL: providerConfig.baseURL,
+        model,
+      },
+    };
+  }
+
+  return {
+    config: {
+      protocol: providerConfig.apiType === 'anthropic'
+        ? CoworkModelProtocol.Anthropic
+        : CoworkModelProtocol.OpenAICompat,
+      providerName: provider,
+      apiKey: providerConfig.apiKey,
+      baseURL: providerConfig.baseURL,
+      model,
+    },
+  };
 }
 
 function resolveSessionTitleApiConfig(): { config: SessionTitleApiConfig | null; error?: string } {
@@ -1434,6 +1493,7 @@ function resolveSessionTitleApiConfig(): { config: SessionTitleApiConfig | null;
     return {
       config: {
         protocol: CoworkModelProtocol.GeminiNative,
+        providerName: rawResolution.providerMetadata.providerName,
         apiKey: rawResolution.config.apiKey,
         baseURL: rawResolution.config.baseURL,
         model: rawResolution.config.model,
@@ -1463,6 +1523,7 @@ function resolveSessionTitleApiConfig(): { config: SessionTitleApiConfig | null;
     return {
       config: {
         protocol: CoworkModelProtocol.OpenAICompat,
+        providerName: resolution.providerMetadata?.providerName,
         apiKey: proxyToken || resolution.config.apiKey,
         baseURL: resolution.config.baseURL,
         model: resolution.config.model,
@@ -1473,6 +1534,7 @@ function resolveSessionTitleApiConfig(): { config: SessionTitleApiConfig | null;
   return {
     config: {
       protocol: CoworkModelProtocol.Anthropic,
+      providerName: resolution.providerMetadata?.providerName,
       apiKey: resolution.config.apiKey,
       baseURL: resolution.config.baseURL,
       model: resolution.config.model,

@@ -47,6 +47,7 @@ export type ShellGuardClassifierResult =
   typeof ShellGuardClassifierResult[keyof typeof ShellGuardClassifierResult];
 
 export const SHELL_GUARD_DEFAULT_MODE: ShellGuardMode = ShellGuardMode.Auto;
+export const SHELL_GUARD_DEFAULT_CLASSIFIER_PROVIDER = '';
 export const SHELL_GUARD_DEFAULT_CLASSIFIER_MODEL = '';
 export const SHELL_GUARD_DEFAULT_CLASSIFIER_TIMEOUT_MS = 8000;
 export const SHELL_GUARD_DEFAULT_ESCALATE_THRESHOLD = 3;
