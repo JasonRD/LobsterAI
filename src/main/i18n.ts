@@ -69,7 +69,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     execApprovalDenied: '用户已拒绝执行该命令。请改用其他方法或告知用户为什么需要这条命令。',
 
     // Shell guard
-    shellGuardAllowed: '🛡️ Shell 安全护栏已放行：{command}',
+    shellGuardAllowed: '🛡️ Shell 安全护栏已放行：{command}\n原因：{reason}',
     shellGuardBlocked: '🛡️ Shell 安全护栏已拦截命令：{command}\n原因：{reason}',
     shellGuardEscalated: '🛡️ Shell 安全护栏请求人工审批：{command}\n原因：{reason}',
 
@@ -333,7 +333,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
       'The user denied the command execution. Use a different approach or explain to the user why this command is needed.',
 
     // Shell guard
-    shellGuardAllowed: '🛡️ Shell guard allowed: {command}',
+    shellGuardAllowed: '🛡️ Shell guard allowed: {command}\nReason: {reason}',
     shellGuardBlocked: '🛡️ Shell guard blocked: {command}\nReason: {reason}',
     shellGuardEscalated: '🛡️ Shell guard requested manual approval: {command}\nReason: {reason}',
 
