@@ -15,6 +15,7 @@ import {
   extractTextFromGeminiResponse,
 } from './coworkModelApi';
 import type { OpenAICompatProxyTarget } from './coworkOpenAICompatProxy';
+import { getCoworkOpenAICompatProxyToken } from './coworkOpenAICompatProxy';
 import { appendPythonRuntimeToEnv } from './pythonRuntime';
 import { isSystemProxyEnabled, resolveSystemProxyUrlForTargets } from './systemProxy';
 
@@ -1452,10 +1453,17 @@ function resolveSessionTitleApiConfig(): { config: SessionTitleApiConfig | null;
   // server, etc.) speak the OpenAI chat-completions protocol.  resolveCurrentApiConfig
   // returns apiType='openai' for these (the URL points at the local compat proxy).
   if (resolution.config.apiType === 'openai') {
+    // The local compat proxy authenticates with its own random Bearer token,
+    // not the upstream provider's apiKey. OpenClaw runtime gets it via the
+    // LOBSTER_PROXY_TOKEN env var; for in-process callers (shellGuard
+    // classifier, session-title generator) we have to substitute it here,
+    // otherwise every request comes back as 401 'invalid or missing proxy
+    // token'.
+    const proxyToken = getCoworkOpenAICompatProxyToken();
     return {
       config: {
         protocol: CoworkModelProtocol.OpenAICompat,
-        apiKey: resolution.config.apiKey,
+        apiKey: proxyToken || resolution.config.apiKey,
         baseURL: resolution.config.baseURL,
         model: resolution.config.model,
       },

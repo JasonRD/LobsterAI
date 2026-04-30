@@ -359,3 +359,12 @@ chore: bump version to 2026.3.18
 
 - PRs should include a concise description, linked issue if applicable, and screenshots for UI changes.
 - Call out any Electron-specific behavior changes (IPC, storage, windowing) in the PR description.
+
+
+<claude-mem-context>
+# Memory Context
+
+# [LobsterAI] recent context, 2026-04-30 1:20pm GMT+8
+
+No previous sessions found.
+</claude-mem-context>
