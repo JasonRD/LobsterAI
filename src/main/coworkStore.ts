@@ -467,6 +467,8 @@ export interface CoworkConfig {
   shellGuardClassifierModel: string;
   shellGuardClassifierTimeoutMs: number;
   shellGuardEscalateThreshold: number;
+  shellGuardUserDenyRules: string;
+  shellGuardUserAllowRules: string;
 }
 
 export type CoworkConfigUpdate = Partial<Pick<
@@ -489,6 +491,8 @@ CoworkConfig,
   | 'shellGuardClassifierModel'
   | 'shellGuardClassifierTimeoutMs'
   | 'shellGuardEscalateThreshold'
+  | 'shellGuardUserDenyRules'
+  | 'shellGuardUserAllowRules'
   | 'embeddingRemoteBaseUrl'
   | 'embeddingRemoteApiKey'
 >>;
@@ -1079,6 +1083,8 @@ export class CoworkStore {
       'shellGuardClassifierModel',
       'shellGuardClassifierTimeoutMs',
       'shellGuardEscalateThreshold',
+      'shellGuardUserDenyRules',
+      'shellGuardUserAllowRules',
     ] as const;
     const configRows = this.getAll<{ key: string; value: string }>(
       `SELECT key, value FROM cowork_config WHERE key IN (${configKeys.map(() => '?').join(', ')})`,
@@ -1116,6 +1122,8 @@ export class CoworkStore {
       shellGuardClassifierModel: cfg.get('shellGuardClassifierModel') || SHELL_GUARD_DEFAULT_CLASSIFIER_MODEL,
       shellGuardClassifierTimeoutMs: clampClassifierTimeoutMs(Number(cfg.get('shellGuardClassifierTimeoutMs'))),
       shellGuardEscalateThreshold: clampEscalateThreshold(Number(cfg.get('shellGuardEscalateThreshold'))),
+      shellGuardUserDenyRules: cfg.get('shellGuardUserDenyRules') ?? '',
+      shellGuardUserAllowRules: cfg.get('shellGuardUserAllowRules') ?? '',
     };
   }
 
@@ -1189,6 +1197,12 @@ export class CoworkStore {
         String(clampEscalateThreshold(config.shellGuardEscalateThreshold)),
         now,
       );
+    }
+    if (config.shellGuardUserDenyRules !== undefined) {
+      this.upsertConfig('shellGuardUserDenyRules', String(config.shellGuardUserDenyRules), now);
+    }
+    if (config.shellGuardUserAllowRules !== undefined) {
+      this.upsertConfig('shellGuardUserAllowRules', String(config.shellGuardUserAllowRules), now);
     }
   }
 

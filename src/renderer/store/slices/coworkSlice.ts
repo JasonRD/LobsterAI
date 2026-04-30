@@ -65,6 +65,8 @@ const initialState: CoworkState = {
     shellGuardClassifierModel: '',
     shellGuardClassifierTimeoutMs: 8000,
     shellGuardEscalateThreshold: 3,
+    shellGuardUserDenyRules: '',
+    shellGuardUserAllowRules: '',
     openClawSessionPolicy: {
       keepAlive: '30d',
     },

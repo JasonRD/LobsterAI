@@ -34,6 +34,8 @@ test('setConfig preserves loaded OpenClaw session policy', () => {
     shellGuardClassifierModel: '',
     shellGuardClassifierTimeoutMs: 8000,
     shellGuardEscalateThreshold: 3,
+    shellGuardUserDenyRules: '',
+    shellGuardUserAllowRules: '',
     openClawSessionPolicy: {
       keepAlive: '365d',
     },

@@ -75,6 +75,8 @@ interface CoworkConfig {
   shellGuardClassifierModel: string;
   shellGuardClassifierTimeoutMs: number;
   shellGuardEscalateThreshold: number;
+  shellGuardUserDenyRules: string;
+  shellGuardUserAllowRules: string;
   openClawSessionPolicy: OpenClawSessionPolicyConfig;
 }
 
@@ -100,6 +102,8 @@ type CoworkConfigUpdate = Partial<Pick<
   | 'shellGuardClassifierModel'
   | 'shellGuardClassifierTimeoutMs'
   | 'shellGuardEscalateThreshold'
+  | 'shellGuardUserDenyRules'
+  | 'shellGuardUserAllowRules'
 >>;
 
 interface CoworkUserMemoryEntry {
