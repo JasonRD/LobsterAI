@@ -34,10 +34,15 @@ import {
   EscalationCounter,
   evaluateShellGuard,
   formatDenyMessageForAgent,
+  getSharedClassifierCache,
   type ShellGuardEvaluation,
 } from '../shellGuard';
 import {
+  buildClassifierCacheKey,
+} from '../shellGuard/classifier';
+import {
   normalizeShellGuardMode,
+  ShellGuardClassifierResult,
   ShellGuardSource,
   ShellGuardVerdict,
 } from '../shellGuard/constants';
@@ -169,6 +174,8 @@ type PendingApprovalEntry = {
   sessionId: string;
   /** When true, use 'allow-always' decision so OpenClaw adds the command to its allowlist. */
   allowAlways?: boolean;
+  /** Original command + cwd for ShellGuard escalations, used to cache user approvals. */
+  shellGuardEscalation?: { command: string; cwd: string };
 };
 
 type ChannelHistorySyncEntry = {
@@ -1251,6 +1258,19 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     // when ask=always).  A simple allow-once is enough — every subsequent
     // command flows through ShellGuard again.
     const decision = result.behavior !== 'allow' ? 'deny' : 'allow-once';
+
+    // If the user approved a ShellGuard escalation, remember the verdict in
+    // the classifier cache so the same command template doesn't re-prompt.
+    if (decision === 'allow-once' && pending.shellGuardEscalation) {
+      const { command, cwd } = pending.shellGuardEscalation;
+      const cacheKey = buildClassifierCacheKey(command, cwd);
+      getSharedClassifierCache().set(cacheKey, {
+        verdict: ShellGuardClassifierResult.Allow,
+        reason: 'user manually approved this command',
+      });
+      console.log(`[ShellGuard] cached user approval for command template (cwd=${cwd})`);
+    }
+
     const client = this.gatewayClient;
     if (!client) {
       this.pendingApprovals.delete(requestId);
@@ -3282,7 +3302,8 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       `[ShellGuard] verdict=${evaluation.verdict} source=${evaluation.source} mode=${mode}`
       + (evaluation.classifierCached ? ' cached=true' : '')
       + (evaluation.escalationCount ? ` strikes=${evaluation.escalationCount}` : '')
-      + ` command=${JSON.stringify(cmdPreview)} reason=${JSON.stringify(evaluation.reason)}`,
+      + ` command=${JSON.stringify(cmdPreview)} reason=${JSON.stringify(evaluation.reason)}`
+      + (evaluation.classifierError ? ` classifierError=${JSON.stringify(evaluation.classifierError)}` : ''),
     );
 
     const emitGuardSystemMessage = (
@@ -3324,7 +3345,14 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     }
 
     // Escalate → fall through to existing manual permission prompt.
-    this.pendingApprovals.set(requestId, { requestId, sessionId });
+    // Remember the command so respondToPermission can cache the user's allow
+    // verdict in the classifier cache (silences subsequent runs of the same
+    // command template within the cache TTL).
+    this.pendingApprovals.set(requestId, {
+      requestId,
+      sessionId,
+      shellGuardEscalation: { command, cwd },
+    });
     emitGuardSystemMessage('shellGuardEscalated');
 
     const { level: dangerLevel, reason: dangerReason } = getCommandDangerLevel(command);
